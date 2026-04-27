@@ -9,7 +9,7 @@ const Product = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
-    name: {
+    productname: {
       type: DataTypes.STRING,
       allowNull: false,
     },
@@ -27,11 +27,11 @@ const Product = sequelize.define(
     images: {
       type: DataTypes.JSON,
       defaultValue: [],
-      comment: "Array of Cloudinary URLs",
+      comment: "Array of firebase URLs",
     },
     category: {
       type: DataTypes.STRING,
-      defaultValue: "robots",
+      defaultValue: "spices",
     },
     discount: {
       type: DataTypes.DECIMAL(10, 2),
@@ -39,6 +39,18 @@ const Product = sequelize.define(
     },
     stock: {
       type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    adminEarningValue: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0,
+    },
+    supervisorEarningValue: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0,
+    },
+    employeeEarningValue: {
+      type: DataTypes.DECIMAL(10, 2),
       defaultValue: 0,
     },
   },

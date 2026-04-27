@@ -11,6 +11,10 @@ const Order = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
+    orderId: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
     userId: {
       type: DataTypes.INTEGER,
       references: {
@@ -34,6 +38,15 @@ const Order = sequelize.define(
     totalPrice: {
       type: DataTypes.DECIMAL(10, 2),
     },
+    totalAdminEarning: {
+      type: DataTypes.DECIMAL(10, 2),
+    },
+    totalSupervisorEarning: {
+      type: DataTypes.DECIMAL(10, 2),
+    },
+    totalEmployeeEarning: {
+      type: DataTypes.DECIMAL(10, 2),
+    },
     isPaid: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
@@ -44,13 +57,18 @@ const Order = sequelize.define(
     },
     status: {
       type: DataTypes.ENUM(
-        "Pending",
         "Accepted",
-        "Shipped",
-        "Out for Delivery",
+        "Cancelled",
         "Delivered",
+        "Out for Delivery",
+        "Pending",
         "Rejected",
-        "Cancelled"
+        "Return Request",
+        "Return - Initiated",
+        "Return - Approved",
+        "Return - Rejected",
+        "Returned & Refunded",
+        "Shipped",
       ),
       defaultValue: "Pending",
     },
@@ -85,7 +103,7 @@ const OrderItem = sequelize.define(
         key: "id",
       },
     },
-    name: {
+    productname: {
       type: DataTypes.STRING,
     },
     qty: {
@@ -94,12 +112,39 @@ const OrderItem = sequelize.define(
     price: {
       type: DataTypes.DECIMAL(10, 2),
     },
+    discount: {
+      type: DataTypes.DECIMAL(10, 2),
+    },
+    adminEarningValue: {
+      type: DataTypes.DECIMAL(10, 2),
+    },
+    supervisorEarningValue: {
+      type: DataTypes.DECIMAL(10, 2),
+    },
+    employeeEarningValue: {
+      type: DataTypes.DECIMAL(10, 2),
+    },
   },
   {
     timestamps: true,
     tableName: "order_items",
   }
 );
+
+// Hook to auto-generate orderId
+Order.beforeCreate(async (order) => {
+  const lastOrder = await Order.findOne({
+    order: [['id', 'DESC']],
+  });
+
+  if (lastOrder && lastOrder.orderId) {
+    const lastNumber = parseInt(lastOrder.orderId.replace('grand', ''), 10);
+    const newNumber = lastNumber + 1;
+    order.orderId = `grand${newNumber.toString().padStart(5, '0')}`;
+  } else {
+    order.orderId = 'grand00001';
+  }
+});
 
 // Associations
 Order.hasMany(OrderItem, { foreignKey: "orderId", as: "orderItems", onDelete: "CASCADE" });

@@ -16,7 +16,7 @@ const User = sequelize.define(
     },
     email: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
       unique: true,
     },
     password: {
@@ -25,11 +25,24 @@ const User = sequelize.define(
     },
     role: {
       type: DataTypes.STRING,
-      defaultValue: "user",
-      comment: "user / admin",
+      defaultValue: "customer",
+      comment: "superadmin / admin / supervisor / employee / customer",
     },
     phone: {
       type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
+    referedby: {
+      type: DataTypes.STRING,
+    },
+    referalcode: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
+    status: {
+      type: DataTypes.STRING,
+      defaultValue: "active",
     },
     details: {
       type: DataTypes.JSON,

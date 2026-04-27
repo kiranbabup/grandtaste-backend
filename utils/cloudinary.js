@@ -14,7 +14,7 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
-        folder: 'robots_products',
+        folder: 'grand_taste_products',
         allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
     },
 });

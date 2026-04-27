@@ -7,7 +7,9 @@ import productRoutes from "./routes/productRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
-import uploadRoutes from "./routes/uploadRoutes.js";
+import wishlistRoutes from "./routes/wishlistRoutes.js";
+// import uploadRoutes from "./routes/uploadRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -30,19 +32,18 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-app.use("/api/products", productRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/cart", cartRoutes);
-app.use("/api/upload", uploadRoutes);
+app.use("/api/wishlist", wishlistRoutes);
+// app.use("/api/upload", uploadRoutes);
 
-import adminRoutes from "./routes/adminRoutes.js";
 app.use("/api/admin", adminRoutes);
 
 app.get("/", (req, res) => {
   res.send("server running");
 });
-
 
 app.listen(5000, () =>
   console.log("Server running on http://localhost:5000")

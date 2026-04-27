@@ -5,15 +5,19 @@ import {
   updateOrderStatus,
   getMyOrders,
   getOrderById,
+  userOrderEarning,
 } from "../controllers/orderController.js";
 import { protect, admin } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/", protect, createOrder); // User
+router.get("/getAllOrders", protect, admin, getAllOrders); // Admin
+router.put("/updateOrderStatus/:id", protect, admin, updateOrderStatus); // Admin
+
+router.post("/createOrder", protect, createOrder); // User
 router.get("/myorders", protect, getMyOrders); // User Route
-router.get("/:id", protect, getOrderById); // Get order by ID
-router.get("/", protect, admin, getAllOrders); // Admin
-router.put("/:id/status", protect, admin, updateOrderStatus); // Admin
+router.get("/userOrderEarning", protect, userOrderEarning); // User Earnings Route
+
+router.get("/getOrderById/:id", protect, getOrderById); // Get order by ID
 
 export default router;

@@ -31,3 +31,7 @@ This is the backend API for a modern ecommerce application built with Node.js, E
 ```bash
 npm run dev
 ```
+
+adminEarningValue
+supervisorEarningValue
+employeeEarningValue
