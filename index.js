@@ -16,45 +16,50 @@ connectDB();
 
 const app = express();
 
-// Increase request body size limit for image uploads
-const requestLimit = process.env.REQUEST_SIZE_LIMIT || '50mb';
+// ↑↑ Increase request body size limit for image uploads
+const requestLimit = process.env.REQUEST_SIZE_LIMIT || "50mb";
 
-// Configure CORS with allowed origins
+// ↑↑ Configure CORS with allowed origins
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map(origin => origin.trim())
+  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
   : ["http://localhost:5173"];
 
-app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log("Blocked by CORS:", origin);
-      callback(new Error(`Not allowed by CORS: ${origin}`));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow requests with no Origin header (e.g., native mobile apps)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.log("Blocked by CORS:", origin);
+        callback(new Error(`Not allowed by CORS: ${origin}`));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+  })
+);
 
+// Extra security headers (optional but nice to have)
 app.use((req, res, next) => {
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
   next();
 });
 
-// Increase body parser limits for file uploads
+// ↑↑ Increase body‑parser limits for file uploads
 app.use(express.json({ limit: requestLimit }));
 app.use(express.urlencoded({ limit: requestLimit, extended: true }));
 
+// ==================== ROUTES ====================
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 // app.use("/api/upload", uploadRoutes);
-
 app.use("/api/admin", adminRoutes);
+// ==================== END ROUTES ====================
 
 app.get("/", (req, res) => {
   res.send("server running");
@@ -62,6 +67,6 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 5002;
 
-app.listen(PORT, () =>
-  console.log(`Server running on http://localhost:${PORT}`)
-);
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
