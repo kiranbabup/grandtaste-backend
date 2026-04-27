@@ -54,7 +54,8 @@ pm2 list
 
 netstat -tulpn
 
-root@srv655793:~# cd /var/www/grandtaste-backend
+root@srv655793:~# 
+cd /var/www/grandtaste-backend
 
 root@srv655793:/var/www# git clone https://github.com/kiranbabup/grandtaste-backend.git
 Cloning into 'grandtaste-backend'...
@@ -65,15 +66,11 @@ remote: Total 74 (delta 22), reused 69 (delta 17), pack-reused 0 (from 0)
 Receiving objects: 100% (74/74), 75.13 KiB | 384.00 KiB/s, done.
 Resolving deltas: 100% (22/22), done.
 
-root@srv655793:/var/www# ls
-backendprojects  frontendprojects  grandtaste-backend  html
-
-root@srv655793:/var/www# cd grandtaste-backend
-
 root@srv655793:/var/www/grandtaste-backend#
 
 npm install
 nano .env
+
 nano /etc/nginx/sites-available/grandtaste-backend
 server {
     listen 80;
@@ -130,3 +127,6 @@ $2b$10$NwkhZ0M/WlHIAikTMmj4JOFJXB9SjZ606LbodzfQB667BEZNqcNQS
 
 7894561230
 Kiran@admin1
+
+9638527410
+SuperAdmin@gt1
