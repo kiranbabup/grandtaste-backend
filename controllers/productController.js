@@ -41,9 +41,19 @@ export const getProductById = async (req, res) => {
 export const createProduct = async (req, res) => {
   try {
     const imageUrls = [];
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
 
     // Check if images were uploaded
     if (req.files && req.files.length > 0) {
+      // Validate file sizes
+      for (const file of req.files) {
+        if (file.size > MAX_FILE_SIZE) {
+          return res.status(400).json({ 
+            message: `File ${file.originalname} exceeds 5MB limit. Size: ${(file.size / 1024 / 1024).toFixed(2)}MB` 
+          });
+        }
+      }
+
       // Loop through buffers and upload to Firebase
       for (const file of req.files) {
         const url = await uploadToFirebase(file.buffer, file.originalname, file.mimetype);

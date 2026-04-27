@@ -44,6 +44,11 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       defaultValue: "active",
     },
+    earnings: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0.00,
+      comment: "Cumulative referral earnings for admin / supervisor / employee",
+    },
     details: {
       type: DataTypes.JSON,
     },

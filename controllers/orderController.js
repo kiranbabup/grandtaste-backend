@@ -10,15 +10,22 @@ export const createOrder = async (req, res) => {
     return res.status(400).json({ message: "No order items" });
   }
 
+  const { role } = req.user;
   let totalAdminEarning = 0;
   let totalSupervisorEarning = 0;
   let totalEmployeeEarning = 0;
 
   for (const item of orderItems) {
     const qty = Number(item.qty) || 1;
-    totalAdminEarning += (Number(item.adminEarningValue) || 0) * qty;
-    totalSupervisorEarning += (Number(item.supervisorEarningValue) || 0) * qty;
-    totalEmployeeEarning += (Number(item.employeeEarningValue) || 0) * qty;
+    
+    // Calculate effective earning values based on user role
+    const adminVal = Number(item.adminEarningValue) || 0;
+    const supervisorVal = (role !== "admin" && role !== "superadmin") ? (Number(item.supervisorEarningValue) || 0) : 0;
+    const employeeVal = (role === "customer" || role === "employee") ? (Number(item.employeeEarningValue) || 0) : 0;
+
+    totalAdminEarning += adminVal * qty;
+    totalSupervisorEarning += supervisorVal * qty;
+    totalEmployeeEarning += employeeVal * qty;
   }
 
   const order = await Order.create({
@@ -34,6 +41,10 @@ export const createOrder = async (req, res) => {
 
   // Create order items
   for (const item of orderItems) {
+    const adminVal = Number(item.adminEarningValue) || 0;
+    const supervisorVal = (role !== "admin" && role !== "superadmin") ? (Number(item.supervisorEarningValue) || 0) : 0;
+    const employeeVal = (role === "customer" || role === "employee") ? (Number(item.employeeEarningValue) || 0) : 0;
+
     await OrderItem.create({
       orderId: order.id,
       productId: item.product,
@@ -41,9 +52,9 @@ export const createOrder = async (req, res) => {
       qty: item.qty,
       price: item.price,
       discount: item.discount,
-      adminEarningValue: item.adminEarningValue,
-      supervisorEarningValue: item.supervisorEarningValue,
-      employeeEarningValue: item.employeeEarningValue,
+      adminEarningValue: adminVal,
+      supervisorEarningValue: supervisorVal,
+      employeeEarningValue: employeeVal,
     });
   }
 
@@ -143,14 +154,109 @@ export const getMyOrders = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    const order = await Order.findByPk(req.params.id);
 
-    if (order) {
-      await order.update({ status });
-      res.json(order);
-    } else {
-      res.status(404).json({ message: "Order not found" });
+    const order = await Order.findByPk(req.params.id, {
+      include: [
+        {
+          model: OrderItem,
+          as: "orderItems",
+        },
+      ],
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
     }
+
+    // Decrement stock when order is Accepted
+    if (status === "Accepted") {
+      for (const item of order.orderItems) {
+        const product = await Product.findByPk(item.productId);
+        if (product) {
+          const newStock = Math.max(0, product.stock - item.qty);
+          await product.update({ stock: newStock });
+        }
+      }
+    }
+
+    // Increment stock when return is approved (items coming back)
+    if (status === "Return - Approved") {
+      for (const item of order.orderItems) {
+        const product = await Product.findByPk(item.productId);
+        if (product) {
+          await product.update({ stock: product.stock + item.qty });
+        }
+      }
+    }
+
+    // Credit earnings to the referral chain when order is Delivered
+    if (status === "Delivered") {
+      const buyer = await User.findByPk(order.userId);
+
+      if (buyer) {
+        const totalAdmin = Number(order.totalAdminEarning) || 0;
+        const totalSupervisor = Number(order.totalSupervisorEarning) || 0;
+        const totalEmployee = Number(order.totalEmployeeEarning) || 0;
+
+        if (buyer.role === "customer") {
+          // Customer → referred by Employee → referred by Supervisor → referred by Admin
+          if (buyer.referedby) {
+            const employee = await User.findOne({ where: { referalcode: buyer.referedby } });
+            if (employee && employee.role === "employee") {
+              await employee.update({ earnings: Number(employee.earnings) + totalEmployee });
+
+              if (employee.referedby) {
+                const supervisor = await User.findOne({ where: { referalcode: employee.referedby } });
+                if (supervisor && supervisor.role === "supervisor") {
+                  await supervisor.update({ earnings: Number(supervisor.earnings) + totalSupervisor });
+
+                  if (supervisor.referedby) {
+                    const admin = await User.findOne({ where: { referalcode: supervisor.referedby } });
+                    if (admin && admin.role === "admin") {
+                      await admin.update({ earnings: Number(admin.earnings) + totalAdmin });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } else if (buyer.role === "employee") {
+          // Employee gets their own earning, then walk up the chain
+          await buyer.update({ earnings: Number(buyer.earnings) + totalEmployee });
+
+          if (buyer.referedby) {
+            const supervisor = await User.findOne({ where: { referalcode: buyer.referedby } });
+            if (supervisor && supervisor.role === "supervisor") {
+              await supervisor.update({ earnings: Number(supervisor.earnings) + totalSupervisor });
+
+              if (supervisor.referedby) {
+                const admin = await User.findOne({ where: { referalcode: supervisor.referedby } });
+                if (admin && admin.role === "admin") {
+                  await admin.update({ earnings: Number(admin.earnings) + totalAdmin });
+                }
+              }
+            }
+          }
+        } else if (buyer.role === "supervisor") {
+          // Supervisor gets their own earning, then walk up to admin
+          await buyer.update({ earnings: Number(buyer.earnings) + totalSupervisor });
+
+          if (buyer.referedby) {
+            const admin = await User.findOne({ where: { referalcode: buyer.referedby } });
+            if (admin && admin.role === "admin") {
+              await admin.update({ earnings: Number(admin.earnings) + totalAdmin });
+            }
+          }
+        } else if (buyer.role === "admin") {
+          // Admin gets their own earning only
+          await buyer.update({ earnings: Number(buyer.earnings) + totalAdmin });
+        }
+      }
+    }
+
+    await order.update({ status });
+    res.json(order);
+
   } catch (error) {
     res.status(500).json({ message: "Failed to update order status", error: error.message });
   }

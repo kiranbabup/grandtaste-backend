@@ -16,12 +16,19 @@ connectDB();
 
 const app = express();
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : ["http://localhost:5173"];
+// Increase request body size limit for image uploads
+const requestLimit = process.env.REQUEST_SIZE_LIMIT || '50mb';
+
+// Configure CORS with allowed origins
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(",").map(origin => origin.trim())
+  : ["http://localhost:5173", "http://localhost:3000"];
 
 app.use(cors({
   origin: allowedOrigins,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.use((req, res, next) => {
@@ -30,7 +37,9 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+// Increase body parser limits for file uploads
+app.use(express.json({ limit: requestLimit }));
+app.use(express.urlencoded({ limit: requestLimit, extended: true }));
 
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);

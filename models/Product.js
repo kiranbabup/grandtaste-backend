@@ -31,7 +31,7 @@ const Product = sequelize.define(
     },
     category: {
       type: DataTypes.STRING,
-      defaultValue: "spices",
+      defaultValue: "veg",
     },
     discount: {
       type: DataTypes.DECIMAL(10, 2),
