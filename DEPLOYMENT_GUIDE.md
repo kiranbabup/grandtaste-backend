@@ -54,7 +54,7 @@ pm2 list
 
 netstat -tulpn
 
-root@srv655793:~# cd /var/www
+root@srv655793:~# cd /var/www/grandtaste-backend
 
 root@srv655793:/var/www# git clone https://github.com/kiranbabup/grandtaste-backend.git
 Cloning into 'grandtaste-backend'...
