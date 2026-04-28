@@ -40,31 +40,28 @@ export const getProductById = async (req, res) => {
 
 export const createProduct = async (req, res) => {
   try {
-    const imageUrls = [];
+    let imageUrl = null;
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
 
-    // Check if images were uploaded
+    // Check if image was uploaded
     if (req.files && req.files.length > 0) {
-      // Validate file sizes
-      for (const file of req.files) {
-        if (file.size > MAX_FILE_SIZE) {
-          return res.status(400).json({ 
-            message: `File ${file.originalname} exceeds 5MB limit. Size: ${(file.size / 1024 / 1024).toFixed(2)}MB` 
-          });
-        }
+      const file = req.files[0]; // Only take the first image
+      
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        return res.status(400).json({ 
+          message: `File ${file.originalname} exceeds 5MB limit. Size: ${(file.size / 1024 / 1024).toFixed(2)}MB` 
+        });
       }
 
-      // Loop through buffers and upload to Firebase
-      for (const file of req.files) {
-        const url = await uploadToFirebase(file.buffer, file.originalname, file.mimetype);
-        imageUrls.push(url);
-      }
+      // Upload to Firebase
+      imageUrl = await uploadToFirebase(file.buffer, file.originalname, file.mimetype);
     }
 
-    // Attach URLs to the database payload
+    // Attach URL to the database payload
     const productData = {
       ...req.body,
-      images: imageUrls
+      images: imageUrl ? [imageUrl] : []
     };
 
     const product = await Product.create(productData);
@@ -84,19 +81,6 @@ export const updateProduct = async (req, res) => {
     } else {
       res.status(404).json({ message: "Product not found" });
     }
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
-  }
-};
-
-export const deleteProduct = async (req, res) => {
-  try {
-    const product = await Product.findByPk(req.params.id);
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-    await product.destroy();
-    res.json({ message: "Product removed" });
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
@@ -131,5 +115,82 @@ export const getProductsSearchByString = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+// @desc    Upload a single image for a product
+// @route   POST /api/products/uploadImage/:id
+// @access  Admin
+export const uploadProductImage = async (req, res) => {
+  try {
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    const file = req.file;
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      return res.status(400).json({
+        message: `File ${file.originalname} exceeds 5MB limit. Size: ${(file.size / 1024 / 1024).toFixed(2)}MB`
+      });
+    }
+
+    // Upload to Firebase
+    const imageUrl = await uploadToFirebase(file.buffer, file.originalname, file.mimetype);
+
+    // Get the product
+    const product = await Product.findByPk(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Add image to product's images array (max 5)
+    const currentImages = product.images || [];
+    if (currentImages.length >= 5) {
+      return res.status(400).json({ message: "Product already has 5 images" });
+    }
+
+    currentImages.push(imageUrl);
+    await product.update({ images: currentImages });
+
+    res.status(201).json({
+      message: "Image uploaded successfully",
+      imageUrl: imageUrl,
+      images: product.images
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to upload image", error: error.message });
+  }
+};
+
+// @desc    Delete an image from a product
+// @route   DELETE /api/products/deleteImage/:id
+// @access  Admin
+export const deleteProductImage = async (req, res) => {
+  try {
+    const { imageUrl } = req.body;
+
+    if (!imageUrl) {
+      return res.status(400).json({ message: "Image URL is required" });
+    }
+
+    const product = await Product.findByPk(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Remove image from array
+    const updatedImages = (product.images || []).filter(img => img !== imageUrl);
+    await product.update({ images: updatedImages });
+
+    res.json({
+      message: "Image deleted successfully",
+      images: updatedImages
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to delete image", error: error.message });
   }
 };
