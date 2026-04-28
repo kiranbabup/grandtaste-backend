@@ -123,23 +123,11 @@ export const getProductsSearchByString = async (req, res) => {
 // @access  Admin
 export const uploadProductImage = async (req, res) => {
   try {
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
+    const { imageUrl } = req.body;
 
-    if (!req.file) {
-      return res.status(400).json({ message: "No image file provided" });
+    if (!imageUrl) {
+      return res.status(400).json({ message: "Image URL is required" });
     }
-
-    const file = req.file;
-
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      return res.status(400).json({
-        message: `File ${file.originalname} exceeds 5MB limit. Size: ${(file.size / 1024 / 1024).toFixed(2)}MB`
-      });
-    }
-
-    // Upload to Firebase
-    const imageUrl = await uploadToFirebase(file.buffer, file.originalname, file.mimetype);
 
     // Get the product
     const product = await Product.findByPk(req.params.id);
@@ -157,12 +145,12 @@ export const uploadProductImage = async (req, res) => {
     await product.update({ images: currentImages });
 
     res.status(201).json({
-      message: "Image uploaded successfully",
+      message: "Image added successfully",
       imageUrl: imageUrl,
       images: product.images
     });
   } catch (error) {
-    res.status(500).json({ message: "Failed to upload image", error: error.message });
+    res.status(500).json({ message: "Failed to add image", error: error.message });
   }
 };
 
