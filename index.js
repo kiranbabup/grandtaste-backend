@@ -41,7 +41,7 @@ app.use(
     credentials: true,
   })
 );
-app.options("*", cors()); // handle pre‑flight requests
+
 
 // Extra security headers (optional but nice to have)
 app.use((req, res, next) => {
