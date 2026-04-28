@@ -130,3 +130,33 @@ Kiran@admin1
 
 9638527410
 SuperAdmin@gt1
+
+as im the superadmin i have to look for orders and update orders so
+need to be similar ui
+using MUI accordian and use "/getAllOrders" route api
+we have to diplay Orders page with
+1.Accordian type check sample ui image
+2.need pagenation as per backend code
+3.display all orders and need user role based data by admin, supervisor, employee & customer too
+4.need to edit status
+as per these
+"Pending",
+        "Accepted",
+        "Rejected",
+        "Shipped",
+        "Out for Delivery",
+        "Delivered",
+initally when a new order comes it will be in
+Pending : so give 2 buttons accept order (success color) (to change status to Accepted) or Reject Order (error color)(to change status to Rejected)
+if Accepted : show Shipped button blue
+if Shipped : show "Out for Delivery" yellow/orange
+if "Out for Delivery" : Delivered success
+if Delivered : then no button only Delivered with green text
+use updateOrderStatus route of api "/updateOrderStatus/:id" from backend
+
+Need to update the Orders.jsx page for superadmin @contextScopeItemMention
+from looking into image
+and write api calling routes in frontend adminServices.js @contextScopeItemMention
+and looking into model of backend @contextScopeItemMention
+and contoller of backend @contextScopeItemMention
+and route from backend @contextScopeItemMention

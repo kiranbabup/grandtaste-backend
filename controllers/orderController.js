@@ -17,7 +17,7 @@ export const createOrder = async (req, res) => {
 
   for (const item of orderItems) {
     const qty = Number(item.qty) || 1;
-    
+
     // Calculate effective earning values based on user role
     const adminVal = Number(item.adminEarningValue) || 0;
     const supervisorVal = (role !== "admin" && role !== "superadmin") ? (Number(item.supervisorEarningValue) || 0) : 0;
@@ -254,7 +254,13 @@ export const updateOrderStatus = async (req, res) => {
       }
     }
 
-    await order.update({ status });
+    // Update order status and isDelivered flag
+    const updateData = { status };
+    if (status === "Delivered") {
+      updateData.isDelivered = true;
+    }
+
+    await order.update(updateData);
     res.json(order);
 
   } catch (error) {
@@ -382,9 +388,9 @@ export const userOrderEarning = async (req, res) => {
     });
 
     // Aggregate total earnings across all time (not just this page)
-    const earningField = user.role === 'admin' ? 'totalAdminEarning' : 
-                         user.role === 'supervisor' ? 'totalSupervisorEarning' : 'totalEmployeeEarning';
-    
+    const earningField = user.role === 'admin' ? 'totalAdminEarning' :
+      user.role === 'supervisor' ? 'totalSupervisorEarning' : 'totalEmployeeEarning';
+
     const totalAggregation = await Order.sum(earningField, {
       where: {
         userId: { [Op.in]: downlineIds },

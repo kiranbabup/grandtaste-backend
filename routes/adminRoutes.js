@@ -272,7 +272,6 @@ router.get("/all-employees", protect, admin, async (req, res) => {
     }
 });
 
-
 // @desc    Get detailed user info including their referrals (Downline)
 // @route   GET /api/admin/get-my-details/:id
 router.get("/get-my-details/:id", protect, admin, async (req, res) => {

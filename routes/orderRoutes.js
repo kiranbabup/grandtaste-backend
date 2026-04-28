@@ -11,8 +11,8 @@ import { protect, admin } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.get("/getAllOrders", protect, admin, getAllOrders); // Admin
-router.put("/updateOrderStatus/:id", protect, admin, updateOrderStatus); // Admin
+router.get("/getAllOrders", protect, getAllOrders); // Role-based scoping handled in controller
+router.put("/updateOrderStatus/:id", protect, updateOrderStatus); // Role-based access handled in controller
 
 router.post("/createOrder", protect, createOrder); // User
 router.get("/myorders", protect, getMyOrders); // User Route
