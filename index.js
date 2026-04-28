@@ -17,28 +17,31 @@ connectDB();
 const app = express();
 
 // ↑↑ Increase request body size limit for image uploads
-const requestLimit = process.env.REQUEST_SIZE_LIMIT || "50mb";
+const requestLimit = "50mb";
 
 // ↑↑ Configure CORS with allowed origins
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
-  : ["http://localhost:5173"];
+const rawOrigins = process.env.ALLOWED_ORIGINS?.split(",") ?? [];
+const allowedOrigins = Array.from(
+  new Set(rawOrigins.map((o) => o.trim()).filter(Boolean))
+);
+if (allowedOrigins.length === 0) allowedOrigins.push("http://localhost:5173");
 
 app.use(
   cors({
-    origin: function (origin, callback) {
+    origin: (origin, callback) => {
       // allow requests with no Origin header (e.g., native mobile apps)
       if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.log("Blocked by CORS:", origin);
-        callback(new Error(`Not allowed by CORS: ${origin}`));
+        return callback(null, true);
       }
+      console.warn("Blocked by CORS:", origin);
+      // reject request – will result in 403 with proper CORS headers
+      return callback(null, false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
+app.options("*", cors()); // handle pre‑flight requests
 
 // Extra security headers (optional but nice to have)
 app.use((req, res, next) => {
