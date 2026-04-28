@@ -23,12 +23,20 @@ const connectDB = async () => {
   try {
     await sequelize.authenticate();
     console.log("MySQL Connected");
-    // Sync models with database (alter: true = auto-update schema)
-    await sequelize.sync({ alter: true });
+
+    // In development we can still use `sync({ alter: true })`
+    // but in production we only run migrations once.
+    if (process.env.NODE_ENV === "development") {
+      await sequelize.sync({ alter: true });
+    } else {
+      // In production do nothing – rely on migrations.
+      console.log("Running in production – skipping automatic sync");
+    }
   } catch (error) {
     console.error("Database connection error:", error);
     process.exit(1);
   }
 };
+
 
 export { sequelize, connectDB };
