@@ -17,14 +17,19 @@ export const protect = async (req, res, next) => {
         attributes: { exclude: ["password"] },
       });
 
-      next();
+      if (!req.user) {
+        return res.status(401).json({ message: "User not found or deleted" });
+      }
+
+      return next();
     } catch (error) {
-      res.status(401).json({ message: "Not authorized" });
+      console.error("JWT Verification Error:", error.message);
+      return res.status(401).json({ message: "Not authorized, token failed" });
     }
   }
 
   if (!token) {
-    res.status(401).json({ message: "No token" });
+    return res.status(401).json({ message: "No token, authorization denied" });
   }
 };
 

@@ -167,6 +167,8 @@ export const getUserProfile = async (req, res) => {
       name: user.name,
       email: user.email,
       phone: user.phone,
+      referalcode: user.referalcode,
+      referedby: user.referedby,
       addresses: user.addresses,
       role: user.role,
     });
