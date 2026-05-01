@@ -5,5 +5,5 @@ logs/
 npm-debug.log*
 .DS_Store
 
-DEPLOYMENT_GUIDE.md
+development_details
 grandtastea.sql

@@ -1,33 +1,81 @@
+// userRoutes.js
 import express from "express";
-import { 
-  registerUser, 
-  loginUser, 
-  googleAuth, 
-  getUserProfile, 
+import {
+  registerUser,
+  loginWebsite,
+  loginApp,
+  loginCustomer,
+  googleAuth,
+  getUserProfile,
   updateUserProfile,
-  getUsers,
-  getUsersByRole,
-  getUserByReferalCode,
-  getUsersByReferalCode,
-  updateUserById,
-  getUserbySearchByString
+  addOrUpdateAddress,
+  getUserAddresses,
+  deleteAddress,
+  forgotPassword,
+  getUsersByRoleHierarchy,
+  getUsersByReferralHierarchy,
+  searchUsersByHierarchy,
+  requestWithdraw,
+  getMyEarningsHistory
 } from "../controllers/userController.js";
-import { protect } from "../middleware/authMiddleware.js";
+import { updateUserStatus, getAllWithdrawRequests, getDashboardRoleCounts, updateWithdrawStatus, getUserEarningsHistory } from "../controllers/adminController.js";
+import { sendNotification, getMyNotifications, markNotificationRead } from "../controllers/notificationController.js";
+import {
+  protect,
+  websiteStaff,
+  superAdminOnly,
+  appStaffOnly,
+  customerOnly
+} from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+// PUBLIC AUTH ROUTES
 router.post("/register", registerUser);
-router.post("/login", loginUser);
+
+router.post("/loginWebsite", loginWebsite);
+router.post("/loginApp", loginApp);
+router.post("/loginCustomer", loginCustomer);
+
 router.post("/google", googleAuth);
+
+router.put("/forgotPassword", forgotPassword);
+
+// PROFILE ROUTES (ALL ACTIVE USERS)
 router.get("/profile", protect, getUserProfile);
 router.put("/profile", protect, updateUserProfile);
 
-// Admin / Hierarchy Routes
-router.get("/getUsers", protect, getUsers);
-router.get("/getUsersByRole/:role", protect, getUsersByRole);
-router.get("/getUserbySearchByString/:searchString", protect, getUserbySearchByString);
-router.get("/getUserByReferalCode/:referalcode", protect, getUserByReferalCode);
-router.get("/getUsersByReferalCode/:referalcode", protect, getUsersByReferalCode);
-router.put("/updateUserById/:id", protect, updateUserById);
+// ADDRESS ROUTES
+router.post("/address", protect, addOrUpdateAddress);
+router.get("/addresses", protect, getUserAddresses);
+router.delete("/address/:id", protect, deleteAddress);
+
+// USER HIERARCHY ROUTES
+router.get("/users/by-role/:role", protect, getUsersByRoleHierarchy);
+router.get("/users/downline/:referalcode", protect, getUsersByReferralHierarchy);
+router.get("/users/search/:searchString", protect, websiteStaff, searchUsersByHierarchy);
+router.put("/users/status/:id", protect, websiteStaff, updateUserStatus);
+
+// EARNINGS
+router.get("/earnings/history", protect, getMyEarningsHistory);
+router.get("/earnings/user/:userId", protect, websiteStaff, getUserEarningsHistory);
+
+// WITHDRAW
+router.post("/withdraw/request", protect, appStaffOnly, requestWithdraw);
+// WITHDRAW website only routes
+router.get("/withdraw/all", protect, superAdminOnly, getAllWithdrawRequests);
+router.put("/withdraw/status/:id", protect, superAdminOnly, updateWithdrawStatus);
+
+// NOTIFICATIONS
+router.post("/notifications/send", protect, sendNotification);
+router.get("/notifications", protect, getMyNotifications);
+router.put("/notifications/read/:id", protect, markNotificationRead);
+
+// DASHBOARD
+router.get("/dashboard/role-counts", protect, websiteStaff, getDashboardRoleCounts);
 
 export default router;
+
+// router.get("/dashboard", protect, websiteStaff, dashboardController); // its not defined
+// router.post("/create-admin", protect, admin, createAdmin); // why?
+// router.get("/employees", protect, supervisorAccess, getEmployees); // why?

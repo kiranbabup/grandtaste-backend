@@ -1,20 +1,18 @@
 const generateReferralCode = () => {
-  const letters = 'abcdefghijklmnopqrstuvwxyz';
-  const numbers = '0123456789';
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-  const getRandomChars = (source, count) => {
-    let result = '';
-    for (let i = 0; i < count; i++) {
-      result += source.charAt(Math.floor(Math.random() * source.length));
-    }
-    return result;
-  };
+  let referralCode = "";
 
-  const part1 = getRandomChars(letters, 3);
-  const part2 = getRandomChars(numbers, 3);
-  const part3 = getRandomChars(letters, 2);
+  for (let i = 0; i < 6; i++) {
+    const randomIndex = Math.floor(
+      Math.random() * characters.length
+    );
 
-  return `${part1}${part2}${part3}`;
+    referralCode += characters[randomIndex];
+  }
+
+  return referralCode;
 };
 
 export default generateReferralCode;

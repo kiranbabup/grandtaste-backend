@@ -1,27 +1,34 @@
 import express from "express";
-import {
-  getProducts,
-  getProductById,
-  createProduct,
-  updateProduct,
-  getProductsSearchByString,
-  uploadProductImage,
-  deleteProductImage
-} from "../controllers/productController.js";
-import { protect, admin } from "../middleware/authMiddleware.js";
 import multer from "multer";
-
-const upload = multer({ storage: multer.memoryStorage() });
+import {
+  createProduct,
+  deleteProductImage,
+  getAllProducts,
+  getAllProductsAdmin,
+  getProductDetailsById,
+  getProductsSearchByString,
+  getProductsSearchByStringAdmin,
+  updateProduct,
+  uploadProductImage,
+} from "../controllers/productController.js";
+import { protect, superAdminOnly, } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
+const storage = multer.memoryStorage();
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024, }, });
 
-router.get("/getProducts", getProducts);
-router.get("/getProductsSearchByString/:searchString", getProductsSearchByString);
-router.get("/getProductById/:id", getProductById);
-router.post("/createProduct", protect, admin, upload.array('images', 5), createProduct); // Admin only
+// PUBLIC
+router.get("/getallproducts", getAllProducts);
+router.get("/search/:searchString", getProductsSearchByString);
+router.get("/getProductByid/:id", getProductDetailsById);
 
-router.put("/updateProduct/:id", protect, admin, updateProduct);   // Admin only
-router.post("/uploadImage/:id", protect, admin, uploadProductImage); // Admin only - accepts JSON with imageUrl
-router.delete("/deleteImage/:id", protect, admin, deleteProductImage); // Admin only
+// SUPERADMIN
+router.post("/create", protect, superAdminOnly, upload.array("images", 10), createProduct);
+router.get("/admin/all", protect, superAdminOnly, getAllProductsAdmin);
+router.get("/admin/search/:searchString", protect, superAdminOnly, getProductsSearchByStringAdmin);
+
+router.put("/update/:id", protect, superAdminOnly, updateProduct);
+router.post("/uploadImage/:id", protect, superAdminOnly, uploadProductImage);
+router.delete("/deleteImage/:id", protect, superAdminOnly, deleteProductImage);
 
 export default router;

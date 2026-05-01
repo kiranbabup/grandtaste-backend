@@ -11,9 +11,11 @@ const Wishlist = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
+
     userId: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      unique: true, // One wishlist per user
       references: {
         model: User,
         key: "id",
@@ -26,7 +28,7 @@ const Wishlist = sequelize.define(
   }
 );
 
-// Wishlist Items as a separate table
+// Wishlist Items
 const WishlistItem = sequelize.define(
   "WishlistItem",
   {
@@ -35,6 +37,7 @@ const WishlistItem = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
+
     wishlistId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -43,6 +46,7 @@ const WishlistItem = sequelize.define(
         key: "id",
       },
     },
+
     productId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -55,13 +59,39 @@ const WishlistItem = sequelize.define(
   {
     timestamps: true,
     tableName: "wishlist_items",
+
+    indexes: [
+      {
+        unique: true,
+        fields: ["wishlistId", "productId"], // Prevent duplicates
+      },
+    ],
   }
 );
 
-// Associations
-Wishlist.hasMany(WishlistItem, { foreignKey: "wishlistId", as: "items", onDelete: "CASCADE" });
-WishlistItem.belongsTo(Wishlist, { foreignKey: "wishlistId" });
-WishlistItem.belongsTo(Product, { foreignKey: "productId", as: "product" });
-Wishlist.belongsTo(User, { foreignKey: "userId" });
+//
+// =========================
+// ASSOCIATIONS
+// =========================
+//
+
+Wishlist.hasMany(WishlistItem, {
+  foreignKey: "wishlistId",
+  as: "items",
+  onDelete: "CASCADE",
+});
+
+WishlistItem.belongsTo(Wishlist, {
+  foreignKey: "wishlistId",
+});
+
+WishlistItem.belongsTo(Product, {
+  foreignKey: "productId",
+  as: "product",
+});
+
+Wishlist.belongsTo(User, {
+  foreignKey: "userId",
+});
 
 export { Wishlist, WishlistItem };

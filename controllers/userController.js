@@ -1,157 +1,417 @@
+// userController.js
 import User from "../models/User.js";
 import generateToken from "../utils/generateToken.js";
 import generateReferralCode from "../utils/generateReferralCode.js";
 import { OAuth2Client } from 'google-auth-library';
 import { Op } from "sequelize";
+import Address from "../models/AddressModel.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // REGISTER
 export const registerUser = async (req, res) => {
-  const { name, password, phone, referedby } = req.body;
+  try {
+    const {
+      name,
+      phone,
+      password,
+      referedby,
+      pincode,
+      address,
+    } = req.body;
 
-  if (!phone) {
-    return res.status(400).json({ message: "Phone number is required" });
-  }
-
-  if (!referedby) {
-    return res.status(400).json({ message: "Referral code is required for registration" });
-  }
-
-  let phoneExists = await User.findOne({ where: { phone } });
-
-  if (phoneExists) {
-    return res.status(400).json({ message: "Phone number already exists" });
-  }
-
-  let expectedRole = "";
-
-  // Validate referedby code and enforce strict hierarchy
-  if (referedby === "superadmin") {
-    expectedRole = "admin";
-  } else {
-    const referrer = await User.findOne({ where: { referalcode: referedby } });
-    if (!referrer) {
-      return res.status(400).json({ message: "Invalid referral code" });
+    // Required validations
+    if (!name || !phone || !password || !referedby) {
+      return res.status(400).json({
+        message: "Name, phone, password, and referral code are required",
+      });
     }
 
-    if (referrer.role === "admin") {
-      expectedRole = "supervisor";
-    } else if (referrer.role === "supervisor") {
-      expectedRole = "employee";
-    } else if (referrer.role === "employee") {
-      expectedRole = "customer";
+    // Password strength validation
+    if (password.length < 6) {
+      return res.status(400).json({
+        message: "Password must be at least 6 characters long",
+      });
+    }
+
+    // Existing phone check
+    const existingUser = await User.findOne({
+      where: { phone },
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        message: "Phone number already exists",
+      });
+    }
+
+    let role = "";
+    let parentUser = null;
+
+    // SUPERADMIN → ADMIN
+    if (referedby === "superadmin") {
+      role = "admin";
+
+      parentUser = await User.findOne({
+        where: { referalcode: "superadmin" },
+      });
+
+      if (!parentUser) {
+        return res.status(400).json({
+          message: "Superadmin referral not found",
+        });
+      }
+
     } else {
-      // customer role or anything else
-      return res.status(403).json({ message: "Customers cannot register new users" });
+      parentUser = await User.findOne({
+        where: { referalcode: referedby },
+      });
+
+      if (!parentUser) {
+        return res.status(400).json({
+          message: "Invalid referral code",
+        });
+      }
+
+      // Parent account must be active
+      if (parentUser.status !== "active") {
+        return res.status(403).json({
+          message: "Referral user is not active",
+        });
+      }
+
+      // Role hierarchy
+      switch (parentUser.role) {
+        case "admin":
+          role = "supervisor";
+          break;
+
+        case "supervisor":
+          role = "employee";
+          break;
+
+        case "employee":
+          role = "customer";
+          break;
+
+        default:
+          return res.status(403).json({
+            message: "This user cannot refer new registrations",
+          });
+      }
     }
+
+    // Mandatory pincode validation
+    if (
+      ["employee", "customer"].includes(role) &&
+      !pincode
+    ) {
+      return res.status(400).json({
+        message: `${role} registration requires pincode`,
+      });
+    }
+
+    // Unique referral code generation
+    let referalcode = null;
+
+    if (role !== "customer") {
+      let isUnique = false;
+
+      while (!isUnique) {
+        const generatedCode = generateReferralCode();
+
+        const existingCode = await User.findOne({
+          where: { referalcode: generatedCode },
+        });
+
+        if (!existingCode) {
+          referalcode = generatedCode;
+          isUnique = true;
+        }
+      }
+    }
+
+    // Create user
+    const user = await User.create({
+      name,
+      phone,
+      password,
+      referedby,
+      referalcode,
+      role,
+      pincode: pincode || null,
+      parentId: parentUser ? parentUser.id : null,
+    });
+
+    // Increment parent direct referrals
+    if (parentUser) {
+      parentUser.directReferrals += 1;
+      await parentUser.save();
+    }
+
+    // Optional address creation
+    if (address) {
+      await Address.create({
+        userId: user.id,
+        addressType: address.addressType || "home",
+        name: address.name || name,
+        phone: address.phone || phone,
+        h_no: address.h_no,
+        street: address.street,
+        landmark: address.landmark || "",
+        city: address.city,
+        state: address.state,
+        pincode: address.pincode || pincode,
+        isDefault: true,
+      });
+    }
+
+    // Success response with auto-login
+    return res.status(201).json({
+      id: user.id,
+      name: user.name,
+      email: user.email || "",
+      phone: user.phone,
+      role: user.role,
+      pincode: user.pincode || "",
+      referalcode: user.referalcode || "",
+      referedby: user.referedby,
+      earnings: user.earnings || 0,
+      directReferrals: user.directReferrals || 0,
+      status: user.status,
+      token: generateToken(user.id),
+    });
+
+  } catch (error) {
+    console.error("Register Error:", error);
+
+    return res.status(500).json({
+      message: "Registration failed",
+      error: error.message,
+    });
   }
-
-  // Customers do not get a referral code
-  let referalcode = null;
-  if (expectedRole !== "customer") {
-    referalcode = generateReferralCode();
-  }
-
-  const user = await User.create({ 
-    name, 
-    password, 
-    phone, 
-    role: expectedRole, 
-    referedby, 
-    referalcode 
-  });
-
-  res.status(201).json({
-    id: user.id,
-    name: user.name,
-    role: user.role,
-    phone: user.phone,
-    referedby: user.referedby,
-    referalcode: user.referalcode,
-    status: user.status,
-    token: generateToken(user.id),
-  });
 };
 
-// LOGIN
-export const loginUser = async (req, res) => {
-  const { phone, password } = req.body;
+// LOGIN web
+export const loginWebsite = async (req, res) => {
+  try {
+    const { phone, password } = req.body;
 
-  if (!phone) {
-    return res.status(400).json({ message: "Phone number is required" });
-  }
+    if (!phone || !password) {
+      return res.status(400).json({
+        message: "Phone and password are required",
+      });
+    }
 
-  let user = await User.findOne({ where: { phone } });
+    const user = await User.findOne({ where: { phone } });
 
-  if (user && (await user.matchPassword(password))) {
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
+    }
+
+    // STATUS CHECK
+    if (user.status !== "active") {
+      return res.status(403).json({
+        message: `Account is ${user.status}. Please contact support.`,
+      });
+    }
+
+    if (!["superadmin", "admin", "supervisor"].includes(user.role)) {
+      return res.status(403).json({
+        message: "Access denied for website login",
+      });
+    }
+
     res.json({
       id: user.id,
       name: user.name,
       phone: user.phone,
-      email: user.email,
       role: user.role,
       referalcode: user.referalcode,
       status: user.status,
       token: generateToken(user.id),
     });
-  } else {
-    res.status(401).json({ message: "Invalid credentials" });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Website login failed",
+      error: error.message,
+    });
+  }
+};
+
+// login app staff
+export const loginApp = async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    if (!phone || !password) {
+      return res.status(400).json({
+        message: "Phone and password are required",
+      });
+    }
+
+    const user = await User.findOne({ where: { phone } });
+
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
+    }
+
+    // STATUS CHECK
+    if (user.status !== "active") {
+      return res.status(403).json({
+        message: `Account is ${user.status}. Please contact support.`,
+      });
+    }
+
+    if (!["admin", "supervisor", "employee"].includes(user.role)) {
+      return res.status(403).json({
+        message: "Access denied for app login",
+      });
+    }
+
+    res.json({
+      id: user.id,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      referalcode: user.referalcode,
+      status: user.status,
+      token: generateToken(user.id),
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "App login failed",
+      error: error.message,
+    });
+  }
+};
+
+// login customer
+export const loginCustomer = async (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({
+        message: "Phone number is required",
+      });
+    }
+
+    const user = await User.findOne({
+      where: {
+        phone,
+        role: "customer",
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        existingUser: false,
+        message: "User not found. Please register.",
+      });
+    }
+
+    // STATUS CHECK
+    if (user.status !== "active") {
+      return res.status(403).json({
+        existingUser: true,
+        message: `Account is ${user.status}. Please contact support.`,
+      });
+    }
+
+    res.json({
+      existingUser: true,
+      id: user.id,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      status: user.status,
+      token: generateToken(user.id),
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Customer login failed",
+      error: error.message,
+    });
   }
 };
 
 // GOOGLE AUTH
 export const googleAuth = async (req, res) => {
   const { token } = req.body;
-  try {
-    const ticket = await client.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID",
-    });
-    const payload = ticket.getPayload();
-    const { email } = payload;
 
-    let user = await User.findOne({ where: { email } });
+  try {
+    let email = null;
+
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+
+      const payload = ticket.getPayload();
+      email = payload.email;
+
+    } catch {
+      const response = await fetch(
+        "https://www.googleapis.com/oauth2/v3/userinfo",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Invalid Google token");
+      }
+
+      const payload = await response.json();
+      email = payload.email;
+    }
+
+    const user = await User.findOne({
+      where: { email },
+    });
 
     if (!user) {
-      return res.status(401).json({ message: "Email not registered. Please login with phone and update email in your profile first." });
+      return res.status(401).json({
+        message:
+          "Email not registered. Please login with phone and update email first.",
+      });
+    }
+
+    // STATUS CHECK
+    if (user.status !== "active") {
+      return res.status(403).json({
+        message: `Account is ${user.status}. Please contact support.`,
+      });
     }
 
     res.json({
       id: user.id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
       role: user.role,
+      referalcode: user.referalcode,
+      status: user.status,
       token: generateToken(user.id),
     });
+
   } catch (error) {
-    // Try to get info from the google userinfo endpoint if it's an access token
-    try {
-      const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error("Failed to fetch user with access token");
+    console.error("Google Auth Error:", error);
 
-      const payload = await response.json();
-      const { email } = payload;
-
-      let user = await User.findOne({ where: { email } });
-
-      if (!user) {
-        return res.status(401).json({ message: "Email not registered. Please login with phone and update email in your profile first." });
-      }
-
-      res.json({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        token: generateToken(user.id),
-      });
-    } catch (err) {
-      console.error("Google Auth Error:", err);
-      res.status(401).json({ message: "Invalid Google Token" });
-    }
+    res.status(401).json({
+      message: "Invalid Google Token",
+    });
   }
 };
 
@@ -159,21 +419,60 @@ export const googleAuth = async (req, res) => {
 // @route   GET /api/users/profile
 // @access  Private
 export const getUserProfile = async (req, res) => {
-  const user = await User.findByPk(req.user.id);
-
-  if (user) {
-    res.json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      referalcode: user.referalcode,
-      referedby: user.referedby,
-      addresses: user.addresses,
-      role: user.role,
+  try {
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ["password"] },
     });
-  } else {
-    res.status(404).json({ message: "User not found" });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    // Get referrer name
+    let referredByName = "";
+
+    if (user.parentId) {
+      const parentUser = await User.findByPk(user.parentId);
+      referredByName = parentUser ? parentUser.name : "";
+    }
+
+    // Get addresses
+    const addresses = await Address.findAll({
+      where: { userId: user.id },
+      order: [["isDefault", "DESC"]],
+    });
+
+    return res.json({
+      id: user.id,
+      name: user.name || "",
+      email: user.email || "",
+      phone: user.phone || "",
+      role: user.role || "",
+      pincode: user.pincode || "",
+      referedby: referredByName || "",
+      referalcode: user.referalcode || "",
+      earnings:
+        ["admin", "supervisor", "employee"].includes(user.role)
+          ? user.earnings
+          : 0,
+      directReferrals:
+        ["admin", "supervisor", "employee"].includes(user.role)
+          ? user.directReferrals
+          : 0,
+      details: user.details || {},
+      addresses,
+      createdAt: user.createdAt,
+    });
+
+  } catch (error) {
+    console.error("Get Profile Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch profile",
+      error: error.message,
+    });
   }
 };
 
@@ -182,220 +481,716 @@ export const getUserProfile = async (req, res) => {
 // @access  Private
 export const updateUserProfile = async (req, res) => {
   try {
+    const { name, email } = req.body;
+
     const user = await User.findByPk(req.user.id);
 
-    if (user) {
-      user.name = req.body.name || user.name;
-      user.email = req.body.email || user.email;
-
-      // Only update password if provided
-      if (req.body.password) {
-        user.password = req.body.password;
-      }
-
-      user.phone = req.body.phone !== undefined ? req.body.phone : user.phone;
-
-      if (req.body.addresses) {
-        if (req.body.addresses.length > 3) {
-          return res.status(400).json({ message: "Cannot store more than 3 addresses" });
-        }
-        user.addresses = req.body.addresses;
-      }
-
-      const updatedUser = await user.save();
-
-      res.json({
-        id: updatedUser.id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        phone: updatedUser.phone,
-        addresses: updatedUser.addresses,
-        role: updatedUser.role,
-        token: generateToken(updatedUser.id),
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
       });
-    } else {
-      res.status(404).json({ message: "User not found" });
     }
+
+    // Only allow updating name + email
+    if (name !== undefined) {
+      user.name = name;
+    }
+
+    if (email !== undefined) {
+      user.email = email;
+    }
+
+    await user.save();
+
+    return res.json({
+      message: "Profile updated successfully",
+      user: {
+        id: user.id,
+        name: user.name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        role: user.role || "",
+        pincode: user.pincode || "",
+        referalcode: user.referalcode || "",
+        earnings:
+          ["admin", "supervisor", "employee"].includes(user.role)
+            ? user.earnings
+            : 0,
+        directReferrals:
+          ["admin", "supervisor", "employee"].includes(user.role)
+            ? user.directReferrals
+            : 0,
+        details: user.details || {},
+      },
+      token: generateToken(user.id),
+    });
+
   } catch (error) {
-    console.error("Profile update error:", error);
-    res.status(500).json({ message: error.message || "Failed to update profile", error: error.toString() });
+    console.error("Update Profile Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to update profile",
+      error: error.message,
+    });
   }
 };
 
-// @desc    Get all users with pagination
-// @route   GET /api/users
-// @access  Private/Admin
-export const getUsers = async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-  const offset = (page - 1) * limit;
 
+// # ADD / UPDATE ADDRESS API
+export const addOrUpdateAddress = async (req, res) => {
   try {
-    const { count, rows } = await User.findAndCountAll({
-      attributes: { exclude: ['password'] },
-      limit,
-      offset,
-      order: [['createdAt', 'DESC']]
+    const {
+      id,
+      addressType,
+      name,
+      phone,
+      h_no,
+      street,
+      landmark,
+      city,
+      state,
+      pincode,
+      isDefault,
+    } = req.body;
+
+    if (!name || !phone || !h_no || !street || !city || !state || !pincode) {
+      return res.status(400).json({
+        message: "All required address fields must be provided",
+      });
+    }
+
+    let address;
+
+    // If setting default, unset previous defaults
+    if (isDefault) {
+      await Address.update(
+        { isDefault: false },
+        { where: { userId: req.user.id } }
+      );
+    }
+
+    // UPDATE existing address
+    if (id) {
+      address = await Address.findOne({
+        where: {
+          id,
+          userId: req.user.id,
+        },
+      });
+
+      if (!address) {
+        return res.status(404).json({
+          message: "Address not found",
+        });
+      }
+
+      await address.update({
+        addressType: addressType || address.addressType,
+        name,
+        phone,
+        h_no,
+        street,
+        landmark,
+        city,
+        state,
+        pincode,
+        isDefault: isDefault || false,
+      });
+
+    } else {
+      // ADD new address
+      address = await Address.create({
+        userId: req.user.id,
+        addressType: addressType || "home",
+        name,
+        phone,
+        h_no,
+        street,
+        landmark,
+        city,
+        state,
+        pincode,
+        isDefault: isDefault || false,
+      });
+    }
+
+    return res.status(200).json({
+      message: id
+        ? "Address updated successfully"
+        : "Address added successfully",
+      address,
     });
 
-    res.json({
-      totalItems: count,
-      users: rows,
-      totalPages: Math.ceil(count / limit),
-      currentPage: page
-    });
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch users", error: error.message });
+    console.error("Address Save Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to save address",
+      error: error.message,
+    });
   }
 };
 
-// @desc    Get users by role with pagination
-// @route   GET /api/users/role/:role
-// @access  Private/Admin
-export const getUsersByRole = async (req, res) => {
-  const role = req.params.role;
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-  const offset = (page - 1) * limit;
-
+// # GET USER ADDRESSES
+export const getUserAddresses = async (req, res) => {
   try {
-    const { count, rows } = await User.findAndCountAll({
-      where: { role },
-      attributes: { exclude: ['password'] },
-      limit,
-      offset,
-      order: [['createdAt', 'DESC']]
+    const addresses = await Address.findAll({
+      where: { userId: req.user.id },
+      order: [["isDefault", "DESC"]],
     });
 
-    res.json({
-      totalItems: count,
-      users: rows,
-      totalPages: Math.ceil(count / limit),
-      currentPage: page
-    });
+    return res.json(addresses);
+
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch users by role", error: error.message });
+    return res.status(500).json({
+      message: "Failed to fetch addresses",
+      error: error.message,
+    });
   }
 };
 
-// @desc    Get a user by referral code
-// @route   GET /api/users/referral/:referalcode
-// @access  Private
-export const getUserByReferalCode = async (req, res) => {
-  const referalcode = req.params.referalcode;
+// # DELETE ADDRESS
 
+export const deleteAddress = async (req, res) => {
   try {
+    const address = await Address.findOne({
+      where: {
+        id: req.params.id,
+        userId: req.user.id,
+      },
+    });
+
+    if (!address) {
+      return res.status(404).json({
+        message: "Address not found",
+      });
+    }
+
+    await address.destroy();
+
+    return res.json({
+      message: "Address deleted successfully",
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to delete address",
+      error: error.message,
+    });
+  }
+};
+
+// forgotpassword
+export const forgotPassword = async (req, res) => {
+  try {
+    const { phone, newPassword } = req.body;
+
+    // Required validation
+    if (!phone || !newPassword) {
+      return res.status(400).json({
+        message: "Phone number and new password are required",
+      });
+    }
+
+    // Optional password strength validation
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        message: "Password must be at least 6 characters long",
+      });
+    }
+
+    // Find user by phone
     const user = await User.findOne({
-      where: { referalcode },
-      attributes: { exclude: ['password'] }
+      where: { phone },
     });
-
-    if (user) {
-      res.json(user);
-    } else {
-      res.status(404).json({ message: "User not found" });
-    }
-  } catch (error) {
-    res.status(500).json({ message: "Failed to fetch user", error: error.message });
-  }
-};
-
-// @desc    Get users referred by a specific referral code with pagination
-// @route   GET /api/users/referredby/:referalcode
-// @access  Private
-export const getUsersByReferalCode = async (req, res) => {
-  const referedby = req.params.referalcode;
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-  const offset = (page - 1) * limit;
-
-  try {
-    const { count, rows } = await User.findAndCountAll({
-      where: { referedby },
-      attributes: { exclude: ['password'] },
-      limit,
-      offset,
-      order: [['createdAt', 'DESC']]
-    });
-
-    res.json({
-      totalItems: count,
-      users: rows,
-      totalPages: Math.ceil(count / limit),
-      currentPage: page
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to fetch referred users", error: error.message });
-  }
-};
-
-// @desc    Update any user by ID (admin function or superadmin)
-// @route   PUT /api/users/:id
-// @access  Private/Admin
-export const updateUserById = async (req, res) => {
-  try {
-    const user = await User.findByPk(req.params.id);
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        message: "User not found",
+      });
     }
 
-    // Only update fields that are present in req.body
-    const updatableFields = ['name', 'email', 'phone', 'role', 'status', 'addresses', 'password'];
-    
-    for (const field of updatableFields) {
-      if (req.body[field] !== undefined) {
-        user[field] = req.body[field];
-      }
+    // Status validation BEFORE password reset
+    if (user.status !== "active") {
+      return res.status(403).json({
+        message: `Account is ${user.status}. Password reset denied.`,
+      });
     }
 
-    const updatedUser = await user.save();
+    // Customers cannot use forgot password
+    if (user.role === "customer") {
+      return res.status(403).json({
+        message: "Customers cannot use forgot password",
+      });
+    }
 
-    res.json({
-      id: updatedUser.id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      phone: updatedUser.phone,
-      role: updatedUser.role,
-      status: updatedUser.status,
-      addresses: updatedUser.addresses,
+    // Update password
+    user.password = newPassword;
+
+    // Sequelize hook auto-hashes
+    await user.save();
+
+    return res.status(200).json({
+      message: "Password updated successfully",
     });
+
   } catch (error) {
-    res.status(500).json({ message: "Failed to update user", error: error.message });
+    console.error("Forgot Password Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to update password",
+      error: error.message,
+    });
   }
 };
 
-// @desc    Search users by name, email, or phone
-// @route   GET /api/users/getUserbySearchByString/:searchString
-// @access  Private/Admin
-export const getUserbySearchByString = async (req, res) => {
-  const searchString = req.params.searchString;
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-  const offset = (page - 1) * limit;
+// ROLE ACCESS CONTROL
+const canManageRole = (loggedInRole, targetRole) => {
+  const permissions = {
+    superadmin: ["admin", "supervisor", "employee", "customer"],
+    admin: ["supervisor", "employee", "customer"],
+    supervisor: ["employee", "customer"],
+  };
 
+  return permissions[loggedInRole]?.includes(targetRole);
+};
+
+// GET USERS BY ROLE
+export const getUsersByRoleHierarchy = async (req, res) => {
   try {
-    const { count, rows } = await User.findAndCountAll({
-      where: {
+    const { role } = req.params;
+    const loggedInUser = req.user;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    if (
+      !["superadmin", "admin", "supervisor", "employee"].includes(
+        loggedInUser.role
+      )
+    ) {
+      return res.status(403).json({
+        message: "Access denied",
+      });
+    }
+
+    let whereClause = { role };
+
+    // SUPERADMIN
+    if (loggedInUser.role === "superadmin") {
+      whereClause = { role };
+    }
+
+    // ADMIN
+    else if (loggedInUser.role === "admin") {
+      if (!["supervisor", "employee", "customer"].includes(role)) {
+        return res.status(403).json({
+          message: "Admins cannot access this role",
+        });
+      }
+
+      whereClause = {
+        role,
         [Op.or]: [
-          { name: { [Op.like]: `%${searchString}%` } },
-          { email: { [Op.like]: `%${searchString}%` } },
-          { phone: { [Op.like]: `%${searchString}%` } }
-        ]
-      },
-      attributes: { exclude: ['password'] },
+          { referedby: loggedInUser.referalcode },
+          { parentId: loggedInUser.id },
+        ],
+      };
+    }
+
+    // SUPERVISOR
+    else if (loggedInUser.role === "supervisor") {
+      if (!["employee", "customer"].includes(role)) {
+        return res.status(403).json({
+          message: "Supervisors can only access employees and customers",
+        });
+      }
+
+      whereClause = {
+        role,
+        referedby: loggedInUser.referalcode,
+      };
+    }
+
+    // EMPLOYEE
+    else if (loggedInUser.role === "employee") {
+      if (role !== "customer") {
+        return res.status(403).json({
+          message: "Employees can only view customers",
+        });
+      }
+
+      whereClause = {
+        role: "customer",
+        referedby: loggedInUser.referalcode,
+      };
+    }
+
+    const { count, rows } = await User.findAndCountAll({
+      where: whereClause,
+      attributes: { exclude: ["password"] },
       limit,
       offset,
-      order: [['createdAt', 'DESC']]
+      order: [["createdAt", "DESC"]],
     });
 
-    res.json({
+    const formattedUsers = await Promise.all(
+      rows.map(async (user) => {
+        let parentName = "";
+
+        if (user.parentId) {
+          const parent = await User.findByPk(user.parentId);
+          parentName = parent ? parent.name : "";
+        }
+
+        return {
+          id: user.id,
+          name: user.name || "",
+          email: user.email || "",
+          role: user.role || "",
+          phone: user.phone || "",
+          pincode: user.pincode || "",
+          referedbyname: parentName,
+          referalcode: user.referalcode || "",
+          status: user.status || "",
+          directReferrals: user.directReferrals || 0,
+          details: user.details || {},
+        };
+      })
+    );
+
+    return res.json({
       totalItems: count,
-      users: rows,
+      users: formattedUsers,
       totalPages: Math.ceil(count / limit),
-      currentPage: page
+      currentPage: page,
     });
+
   } catch (error) {
-    res.status(500).json({ message: "Failed to search users", error: error.message });
+    console.error("Get Users By Role Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch users",
+      error: error.message,
+    });
   }
 };
+
+// GET DOWNLINE USERS BY REFERRAL CODE
+export const getUsersByReferralHierarchy = async (req, res) => {
+  try {
+    const { referalcode } = req.params;
+    const loggedInUser = req.user;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    if (
+      !["superadmin", "admin", "supervisor", "employee"].includes(
+        loggedInUser.role
+      )
+    ) {
+      return res.status(403).json({
+        message: "Access denied",
+      });
+    }
+
+    // Verify referral code exists
+    const validUser = await User.findOne({
+      where: { referalcode },
+    });
+
+    if (!validUser) {
+      return res.status(404).json({
+        message: "Referral code not found",
+      });
+    }
+
+    // EMPLOYEE restriction
+    if (
+      loggedInUser.role === "employee" &&
+      referalcode !== loggedInUser.referalcode
+    ) {
+      return res.status(403).json({
+        message: "Employees can only view their own downline",
+      });
+    }
+
+    const { count, rows } = await User.findAndCountAll({
+      where: {
+        referedby: referalcode,
+      },
+      attributes: { exclude: ["password"] },
+      limit,
+      offset,
+      order: [["createdAt", "DESC"]],
+    });
+
+    const formattedUsers = await Promise.all(
+      rows.map(async (user) => {
+        let parentName = "";
+
+        if (user.parentId) {
+          const parent = await User.findByPk(user.parentId);
+          parentName = parent ? parent.name : "";
+        }
+
+        return {
+          id: user.id,
+          name: user.name || "",
+          email: user.email || "",
+          role: user.role || "",
+          phone: user.phone || "",
+          pincode: user.pincode || "",
+          referedbyname: parentName,
+          referalcode: user.referalcode || "",
+          status: user.status || "",
+          directReferrals: user.directReferrals || 0,
+          details: user.details || {},
+        };
+      })
+    );
+
+    return res.json({
+      totalItems: count,
+      users: formattedUsers,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+    });
+
+  } catch (error) {
+    console.error("Get Downline Users Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch downline users",
+      error: error.message,
+    });
+  }
+};
+
+export const searchUsersByHierarchy = async (req, res) => {
+  try {
+    const { searchString } = req.params;
+    const loggedInUser = req.user;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    if (!["superadmin", "admin", "supervisor"].includes(loggedInUser.role)) {
+      return res.status(403).json({
+        message: "Access denied",
+      });
+    }
+
+    let whereClause = {
+      [Op.or]: [
+        { name: { [Op.like]: `%${searchString}%` } },
+        { email: { [Op.like]: `%${searchString}%` } },
+        { phone: { [Op.like]: `%${searchString}%` } },
+        { referalcode: { [Op.like]: `%${searchString}%` } },
+      ],
+    };
+
+    // ADMIN SEARCH RESTRICTION
+    if (loggedInUser.role === "admin") {
+      const supervisors = await User.findAll({
+        where: { referedby: loggedInUser.referalcode },
+        attributes: ["id", "referalcode"],
+      });
+
+      const supervisorCodes = supervisors.map((s) => s.referalcode);
+
+      const employees = await User.findAll({
+        where: {
+          referedby: {
+            [Op.in]: supervisorCodes,
+          },
+        },
+        attributes: ["id", "referalcode"],
+      });
+
+      const employeeCodes = employees.map((e) => e.referalcode);
+
+      whereClause = {
+        ...whereClause,
+        [Op.or]: [
+          { referedby: loggedInUser.referalcode },
+          { referedby: { [Op.in]: supervisorCodes } },
+          { referedby: { [Op.in]: employeeCodes } },
+        ],
+      };
+    }
+
+    // SUPERVISOR SEARCH RESTRICTION
+    if (loggedInUser.role === "supervisor") {
+      const employees = await User.findAll({
+        where: { referedby: loggedInUser.referalcode },
+        attributes: ["id", "referalcode"],
+      });
+
+      const employeeCodes = employees.map((e) => e.referalcode);
+
+      whereClause = {
+        ...whereClause,
+        [Op.or]: [
+          { referedby: loggedInUser.referalcode },
+          { referedby: { [Op.in]: employeeCodes } },
+        ],
+      };
+    }
+
+    const { count, rows } = await User.findAndCountAll({
+      where: whereClause,
+      attributes: { exclude: ["password"] },
+      limit,
+      offset,
+      order: [["createdAt", "DESC"]],
+    });
+
+    const formattedUsers = await Promise.all(
+      rows.map(async (user) => {
+        let parentName = "";
+
+        if (user.parentId) {
+          const parent = await User.findByPk(user.parentId);
+          parentName = parent ? parent.name : "";
+        }
+
+        return {
+          id: user.id,
+          name: user.name || "",
+          email: user.email || "",
+          role: user.role || "",
+          phone: user.phone || "",
+          pincode: user.pincode || "",
+          referedbyname: parentName,
+          referalcode: user.referalcode || "",
+          status: user.status || "",
+          directReferrals: user.directReferrals || 0,
+          details: user.details || {},
+        };
+      })
+    );
+
+    return res.json({
+      totalItems: count,
+      users: formattedUsers,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+    });
+
+  } catch (error) {
+    console.error("Search Users Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to search users",
+      error: error.message,
+    });
+  }
+};
+
+// REQUEST WITHDRAW API
+// admin / supervisor / employee only
+export const requestWithdraw = async (req, res) => {
+  try {
+    const { withdrawAmount } = req.body;
+    const user = req.user;
+
+    // Role validation
+    if (!["admin", "supervisor", "employee"].includes(user.role)) {
+      return res.status(403).json({
+        message: "Only Admin, Supervisor, or Employee can withdraw",
+      });
+    }
+
+    // Amount validation
+    if (!withdrawAmount || withdrawAmount <= 0) {
+      return res.status(400).json({
+        message: "Valid withdraw amount required",
+      });
+    }
+
+    // Minimum withdrawal limit
+    if (parseFloat(withdrawAmount) < 100) {
+      return res.status(400).json({
+        message: "Minimum withdrawal amount is ₹100",
+      });
+    }
+
+    // Account status validation
+    if (user.status !== "active") {
+      return res.status(403).json({
+        message: `Account is ${user.status}. Withdrawal denied.`,
+      });
+    }
+
+    // Prevent multiple pending/inprogress requests
+    const existingPendingRequest = await Withdraw.findOne({
+      where: {
+        userId: user.id,
+        status: ["pending", "inprogress"],
+      },
+    });
+
+    if (existingPendingRequest) {
+      return res.status(400).json({
+        message:
+          "You already have a pending withdrawal request. Please wait until it is processed.",
+      });
+    }
+
+    // Available balance check
+    const availableBalance =
+      parseFloat(user.earnings || 0) -
+      parseFloat(user.withdrawn || 0);
+
+    if (parseFloat(withdrawAmount) > availableBalance) {
+      return res.status(400).json({
+        message: "Insufficient withdrawable balance",
+      });
+    }
+
+    // Create withdraw request
+    const withdrawRequest = await Withdraw.create({
+      userId: user.id,
+      withdrawAmount,
+      status: "pending",
+    });
+
+    return res.status(201).json({
+      message: "Withdraw request submitted successfully",
+      availableBalanceAfterRequest:
+        availableBalance - parseFloat(withdrawAmount),
+      withdrawRequest,
+    });
+
+  } catch (error) {
+    console.error("Withdraw Request Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to request withdrawal",
+      error: error.message,
+    });
+  }
+};
+
+export const getMyEarningsHistory = async (req, res) => {
+  try {
+    const earnings = await EarningsLedger.findAll({
+      where: { userId: req.user.id },
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.json(earnings);
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch earnings history",
+      error: error.message,
+    });
+  }
+};
+

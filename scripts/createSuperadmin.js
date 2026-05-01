@@ -19,10 +19,8 @@ const createSuperadmin = async () => {
       name: "superadmin",
       role: "superadmin",
       referalcode: "superadmin",
-      referedby: "superadmin",
       phone: "9638527410",
       password: "SuperAdmin@gt1",
-      status: "active"
     });
 
     console.log("Superadmin created successfully!");

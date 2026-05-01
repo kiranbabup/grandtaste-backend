@@ -47,6 +47,16 @@ const Order = sequelize.define(
     totalEmployeeEarning: {
       type: DataTypes.DECIMAL(10, 2),
     },
+    totalGstAmount: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0,
+      comment: "Total GST amount for entire order",
+    },
+    assignedEmployeeId: { type: DataTypes.INTEGER, allowNull: true, comment: "Employee assigned based on pincode", },
+    adminId: { type: DataTypes.INTEGER, allowNull: true, },
+    supervisorId: { type: DataTypes.INTEGER, allowNull: true, },
+    employeeId: { type: DataTypes.INTEGER, allowNull: true, },
+    deliveryPincode: { type: DataTypes.STRING, allowNull: false, },
     isPaid: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
@@ -64,11 +74,22 @@ const Order = sequelize.define(
         "Out for Delivery",
         "Delivered",
         "Cancelled",
+        "Cancel initiated",
+        "Cancel Request",
         "Return Request",
         "Return - Initiated",
         "Return - Approved",
         "Return - Rejected",
         "Returned & Refunded",
+      ),
+      defaultValue: "Pending",
+    },
+    paymentStatus: {
+      type: DataTypes.ENUM(
+        "Pending",
+        "In-Progress",
+        "Successful",
+        "Failed",
       ),
       defaultValue: "Pending",
     },
@@ -106,14 +127,46 @@ const OrderItem = sequelize.define(
     productname: {
       type: DataTypes.STRING,
     },
+    category: {
+      type: DataTypes.STRING,
+    },
+
+    stock: {
+      type: DataTypes.INTEGER,
+    },
+
+    unit: {
+      type: DataTypes.STRING,
+    },
+
     qty: {
       type: DataTypes.INTEGER,
     },
-    price: {
+    productprice: {
       type: DataTypes.DECIMAL(10, 2),
     },
-    discount: {
+    discountvalue: {
       type: DataTypes.DECIMAL(10, 2),
+    },
+    sellingPrice: {
+      type: DataTypes.DECIMAL(10, 2),
+    },
+    sellingPriceGst: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0,
+      comment: "GST amount included in single item selling price",
+    },
+
+    totalSellingPriceGst: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0,
+      comment: "Total GST for qty",
+    },
+    gstpercentage: {
+      type: DataTypes.DECIMAL(10, 2),
+    },
+    hsncode: {
+      type: DataTypes.STRING,
     },
     adminEarningValue: {
       type: DataTypes.DECIMAL(10, 2),
@@ -138,12 +191,48 @@ Order.beforeCreate(async (order) => {
   });
 
   if (lastOrder && lastOrder.orderId) {
-    const lastNumber = parseInt(lastOrder.orderId.replace('grand', ''), 10);
+    const lastNumber = parseInt(lastOrder.orderId.replace('inv0', ''), 10);
     const newNumber = lastNumber + 1;
-    order.orderId = `grand${newNumber.toString().padStart(5, '0')}`;
+    order.orderId = `inv0${newNumber}`;
   } else {
-    order.orderId = 'grand00001';
+    order.orderId = 'inv01';
   }
+});
+
+Order.beforeSave(async (order) => {
+  if (!order.id) return;
+
+  const orderItems = await OrderItem.findAll({
+    where: { orderId: order.id },
+  });
+
+  let totalPrice = 0;
+  let totalAdminEarning = 0;
+  let totalSupervisorEarning = 0;
+  let totalEmployeeEarning = 0;
+  let totalGstAmount = 0;
+
+  orderItems.forEach((item) => {
+    totalPrice += parseFloat(item.sellingPrice || 0) * parseInt(item.qty || 0);
+
+    totalAdminEarning +=
+      parseFloat(item.adminEarningValue || 0) * parseInt(item.qty || 0);
+
+    totalSupervisorEarning +=
+      parseFloat(item.supervisorEarningValue || 0) * parseInt(item.qty || 0);
+
+    totalEmployeeEarning +=
+      parseFloat(item.employeeEarningValue || 0) * parseInt(item.qty || 0);
+
+      totalGstAmount +=
+      parseFloat(item.totalSellingPriceGst || 0);
+  });
+
+  order.totalPrice = totalPrice;
+  order.totalAdminEarning = totalAdminEarning;
+  order.totalSupervisorEarning = totalSupervisorEarning;
+  order.totalEmployeeEarning = totalEmployeeEarning;
+  order.totalGstAmount = totalGstAmount;
 });
 
 // Associations
