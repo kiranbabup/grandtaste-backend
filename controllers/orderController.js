@@ -2,7 +2,7 @@ import { Op } from "sequelize";
 import { Order, OrderItem } from "../models/Order.js";
 import { Cart, CartItem } from "../models/Cart.js";
 import User from "../models/User.js";
-import EarningsLedger from "../models/EarningsLedger.js";
+import EarningsLedger from "../models/EarningsLedgerModel.js";
 import Notification from "../models/NotificationModel.js";
 
 // CREATE ORDER
