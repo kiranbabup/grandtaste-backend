@@ -28,8 +28,9 @@ const connectDB = async () => {
     // but in production we only run migrations once.
     if (process.env.NODE_ENV === "development") {
       await sequelize.sync({ alter: true }).catch((err) => {
-        // Ignore duplicate key errors - indexes already exist
-        if (err.code === 'ER_DUP_KEYNAME') {
+        // Ignore common sync errors - table/index already exists or key issues
+        const ignoredErrors = ['ER_DUP_KEYNAME', 'ER_TOO_MANY_KEYS', 'ER_DUP_ENTRY', 'ER_KEY_COLUMN_DOES_NOT_EXIST'];
+        if (ignoredErrors.includes(err.code)) {
           console.log("Table sync completed (some indexes may already exist)");
         } else {
           throw err;
