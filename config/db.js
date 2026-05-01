@@ -27,7 +27,14 @@ const connectDB = async () => {
     // In development we can still use `sync({ alter: true })`
     // but in production we only run migrations once.
     if (process.env.NODE_ENV === "development") {
-      await sequelize.sync({ alter: true });
+      await sequelize.sync({ alter: true }).catch((err) => {
+        // Ignore duplicate key errors - indexes already exist
+        if (err.code === 'ER_DUP_KEYNAME') {
+          console.log("Table sync completed (some indexes may already exist)");
+        } else {
+          throw err;
+        }
+      });
     } else {
       // In production do nothing – rely on migrations.
       console.log("Running in production – skipping automatic sync");
