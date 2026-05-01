@@ -1,7 +1,7 @@
 import { Wishlist, WishlistItem } from "../models/Wishlist.js";
 import Product from "../models/Product.js";
-import Notification from "../models/Notification.js";
 import User from "../models/User.js";
+import Notification from "../models/NotificationModel.js";
 
 // UPDATED addToWishlist
 export const addToWishlist = async (req, res) => {
