@@ -1,3 +1,4 @@
+//  node scripts/createDefaultUsers.js
 import { connectDB } from "../config/db.js";
 import User from "../models/User.js";
 
