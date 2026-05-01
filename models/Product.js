@@ -65,7 +65,7 @@ const Product = sequelize.define(
 
     hsncode: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
 
     stock: {
