@@ -129,3 +129,14 @@ export const supervisorAccess = (req, res, next) => {
     message: "Supervisor/Admin/SuperAdmin only",
   });
 };
+
+// EMPLOYEE ONLY
+export const employeeOnly = (req, res, next) => {
+  if (req.user?.role === "employee") {
+    return next();
+  }
+
+  return res.status(403).json({
+    message: "Employee only",
+  });
+};
