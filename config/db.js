@@ -46,17 +46,34 @@ const connectDB = async () => {
 
     await loadModels();
 
-    const shouldSync =
-      process.env.NODE_ENV !== "production" ||
-      process.env.FORCE_DB_SYNC === "true";
+    const forceSync = process.env.FORCE_DB_SYNC === "true";
+    const shouldSync = process.env.NODE_ENV !== "production" || forceSync;
 
     if (shouldSync) {
-      await sequelize.sync({ alter: true }).then(() => {
+      const syncOptions = forceSync ? { alter: true } : {};
+      console.log(
+        `Running sequelize sync with options: ${JSON.stringify(syncOptions)}`
+      );
+
+      await sequelize.sync(syncOptions).then(() => {
         console.log("Sequelize sync completed successfully");
         console.log("Registered models:", Object.keys(sequelize.models).join(", "));
-      }).catch((err) => {
+      }).catch(async (err) => {
         const errorCode = err.code || err.parent?.code || err.original?.code;
         const ignoredErrors = ['ER_DUP_KEYNAME', 'ER_TOO_MANY_KEYS', 'ER_DUP_ENTRY', 'ER_KEY_COLUMN_DOES_NOT_EXIST'];
+
+        if (errorCode === 'ER_TOO_MANY_KEYS' && forceSync) {
+          console.warn("Alter sync failed due to too many keys. Falling back to create-only sync.", err.message);
+          await sequelize.sync().then(() => {
+            console.log("Fallback create-only sync completed successfully");
+            console.log("Registered models:", Object.keys(sequelize.models).join(", "));
+          }).catch((fallbackErr) => {
+            console.error("Fallback sync failed:", fallbackErr);
+            throw fallbackErr;
+          });
+          return;
+        }
+
         if (ignoredErrors.includes(errorCode)) {
           console.warn("Sequelize sync ignored error:", err.message);
           console.log("Registered models in error state:", Object.keys(sequelize.models).join(", "));
