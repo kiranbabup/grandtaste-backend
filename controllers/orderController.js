@@ -55,9 +55,7 @@ export const createOrder = async (req, res) => {
         paymentMethod === "Razorpay"
           ? paymentDetails?.status || "Pending"
           : "Pending",
-      isPaid:
-        paymentMethod === "Razorpay" &&
-        paymentDetails?.status === "Success",
+      isPaid: paymentMethod === "Razorpay" && paymentDetails?.status === "Success",
     });
 
     // MOVE CART ITEMS TO ORDER ITEMS

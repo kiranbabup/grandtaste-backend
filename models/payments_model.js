@@ -53,7 +53,6 @@ const Payments = sequelize.define(
     transaction_id: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
     },
 
     razorpay_order_id: {
