@@ -50,6 +50,7 @@ export const createOrder = async (req, res) => {
       shippingAddress,
       phone: shippingAddress.phone || user.phone,
       paymentMethod: paymentMethod || "Cash on Delivery",
+      deliveryPincode: shippingAddress.pincode,
       paymentStatus:
         paymentMethod === "Razorpay"
           ? paymentDetails?.status || "Pending"
