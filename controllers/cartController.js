@@ -136,7 +136,22 @@ export const addToCart = async (req, res) => {
       },
     });
 
-    return res.json(updatedCart);
+    if (!updatedCart) {
+      return res.json({ items: [], totalItems: 0, grandTotal: 0 });
+    }
+
+    let grandTotal = 0;
+    updatedCart.items.forEach((item) => {
+      const price = parseFloat(item.productprice) || 0;
+      const discount = parseFloat(item.discountvalue) || 0;
+      grandTotal += (price - discount) * item.qty;
+    });
+
+    return res.json({
+      ...updatedCart.toJSON(),
+      grandTotal,
+      totalItems: updatedCart.items.length,
+    });
 
   } catch (error) {
     console.error("Add To Cart Error:", error);
@@ -163,15 +178,14 @@ export const getCart = async (req, res) => {
     });
 
     if (!cart) {
-      return res.json({
-        items: [],
-        totalItems: 0,
-      });
+      return res.json({ items: [], totalItems: 0, grandTotal: 0 });
     }
 
     let grandTotal = 0;
 
     cart.items.forEach((item) => {
+      const price = parseFloat(item.productprice) || 0;
+      const discount = parseFloat(item.discountvalue) || 0;
       grandTotal += parseFloat(item.sellingPrice) * item.qty;
     });
 
@@ -212,7 +226,22 @@ export const removeFromCart = async (req, res) => {
       },
     });
 
-    res.json(updatedCart);
+    if (!updatedCart) {
+      return res.json({ items: [], totalItems: 0, grandTotal: 0 });
+    }
+
+    let grandTotal = 0;
+    updatedCart.items.forEach((item) => {
+      const price = parseFloat(item.productprice) || 0;
+      const discount = parseFloat(item.discountvalue) || 0;
+      grandTotal += (price - discount) * item.qty;
+    });
+
+    res.json({
+      ...updatedCart.toJSON(),
+      grandTotal,
+      totalItems: updatedCart.items.length,
+    });
   } else {
     res.status(404).json({ message: "Cart not found" });
   }
