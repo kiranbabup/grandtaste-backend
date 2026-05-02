@@ -73,21 +73,9 @@ const Withdraw = sequelize.define(
       allowNull: true,
       comment: "bank_transfer / upi",
     },
-
-    createdAt: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: () => new Date().toISOString(),
-    },
-
-    updatedAt: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: () => new Date().toISOString(),
-    },
   },
   {
-    timestamps: false,
+    timestamps: true,
     tableName: "withdraws",
   }
 );

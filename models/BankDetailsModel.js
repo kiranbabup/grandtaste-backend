@@ -49,22 +49,10 @@ const BankDetail = sequelize.define(
             type: DataTypes.BOOLEAN,
             defaultValue: false,
         },
-
-        createdAt: {
-            type: DataTypes.STRING,
-            allowNull: false,
-            defaultValue: () => new Date().toISOString(),
-        },
-
-        updatedAt: {
-            type: DataTypes.STRING,
-            allowNull: true,
-            defaultValue: () => new Date().toISOString(),
-        },
     },
     {
         tableName: "bank_details",
-        timestamps: false,
+        timestamps: true,
     }
 );
 export default BankDetail;

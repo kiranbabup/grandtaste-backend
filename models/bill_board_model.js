@@ -10,11 +10,6 @@ const BillBoards = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
-    createdAt: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: () => new Date().toISOString(),
-    },
     title: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -34,15 +29,10 @@ const BillBoards = sequelize.define(
       type: DataTypes.TINYINT,
       allowNull: false,
     },
-    updatedAt: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: () => new Date().toISOString(),
-    },
   },
   {
     tableName: "bill_boards",
-    timestamps: false,
+    timestamps: true,
   }
 );
 export default BillBoards;

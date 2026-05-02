@@ -20,7 +20,7 @@ const sequelize = new Sequelize(
 );
 
 const loadModels = async () => {
-  await Promise.all([
+  const loadedModels = await Promise.all([
     import("../models/User.js"),
     import("../models/Product.js"),
     import("../models/Order.js"),
@@ -34,6 +34,9 @@ const loadModels = async () => {
     import("../models/payments_model.js"),
     import("../models/WithdrawModel.js"),
   ]);
+
+  const names = loadedModels.map((m) => m.default?.name || "unknown");
+  console.log("Loaded models:", names.join(", "));
 };
 
 const connectDB = async () => {
@@ -48,12 +51,15 @@ const connectDB = async () => {
       process.env.FORCE_DB_SYNC === "true";
 
     if (shouldSync) {
-      await sequelize.sync({ alter: true }).catch((err) => {
-        // Ignore common sync errors - table/index already exists or key issues
+      await sequelize.sync({ alter: true }).then(() => {
+        console.log("Sequelize sync completed successfully");
+        console.log("Registered models:", Object.keys(sequelize.models).join(", "));
+      }).catch((err) => {
         const errorCode = err.code || err.parent?.code || err.original?.code;
         const ignoredErrors = ['ER_DUP_KEYNAME', 'ER_TOO_MANY_KEYS', 'ER_DUP_ENTRY', 'ER_KEY_COLUMN_DOES_NOT_EXIST'];
         if (ignoredErrors.includes(errorCode)) {
-          console.log("Table sync completed (some indexes may already exist)");
+          console.warn("Sequelize sync ignored error:", err.message);
+          console.log("Registered models in error state:", Object.keys(sequelize.models).join(", "));
         } else {
           throw err;
         }
