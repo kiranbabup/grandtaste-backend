@@ -19,14 +19,35 @@ const sequelize = new Sequelize(
   }
 );
 
+const loadModels = async () => {
+  await Promise.all([
+    import("../models/User.js"),
+    import("../models/Product.js"),
+    import("../models/Order.js"),
+    import("../models/Cart.js"),
+    import("../models/Wishlist.js"),
+    import("../models/AddressModel.js"),
+    import("../models/BankDetailsModel.js"),
+    import("../models/bill_board_model.js"),
+    import("../models/EarningsLedgerModel.js"),
+    import("../models/NotificationModel.js"),
+    import("../models/payments_model.js"),
+    import("../models/WithdrawModel.js"),
+  ]);
+};
+
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
     console.log("MySQL Connected");
 
-    // In development we can still use `sync({ alter: true })`
-    // but in production we only run migrations once.
-    if (process.env.NODE_ENV === "development") {
+    await loadModels();
+
+    const shouldSync =
+      process.env.NODE_ENV !== "production" ||
+      process.env.FORCE_DB_SYNC === "true";
+
+    if (shouldSync) {
       await sequelize.sync({ alter: true }).catch((err) => {
         // Ignore common sync errors - table/index already exists or key issues
         const errorCode = err.code || err.parent?.code || err.original?.code;
@@ -38,7 +59,6 @@ const connectDB = async () => {
         }
       });
     } else {
-      // In production do nothing – rely on migrations.
       console.log("Running in production – skipping automatic sync");
     }
   } catch (error) {

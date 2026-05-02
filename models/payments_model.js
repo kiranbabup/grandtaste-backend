@@ -100,22 +100,10 @@ const Payments = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-
-    createdAt: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: () => new Date().toISOString(),
-    },
-
-    updatedAt: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: () => new Date().toISOString(),
-    },
   },
   {
     tableName: "payments",
-    timestamps: false,
+    timestamps: true,
   }
 );
 
