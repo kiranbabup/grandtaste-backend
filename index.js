@@ -8,6 +8,7 @@ import userRoutes from "./routes/userRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
+import billBoardRoutes from "./routes/billBoardRoutes.js";
 // import uploadRoutes from "./routes/uploadRoutes.js";
 // import adminRoutes from "./routes/adminRoutes.js";
 
@@ -60,6 +61,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/wishlist", wishlistRoutes);
+app.use("/api/billboards", billBoardRoutes);
 // app.use("/api/upload", uploadRoutes);
 // app.use("/api/admin", adminRoutes);
 // ==================== END ROUTES ====================

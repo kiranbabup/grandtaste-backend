@@ -1,6 +1,7 @@
 import { DataTypes } from "sequelize";
 import { sequelize } from "../config/db.js";
 import User from "./User.js";
+import BankDetail from "./BankDetailsModel.js";
 
 const Withdraw = sequelize.define(
   "Withdraw",
@@ -36,9 +37,57 @@ const Withdraw = sequelize.define(
       ),
       defaultValue: "pending",
     },
+
+    ac_no: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    ifsc_code: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    branch_name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    ac_holder_name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+
+    upi: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    payment_transaction_ID: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    payment_mode: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "bank_transfer / upi",
+    },
+
+    createdAt: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: () => new Date().toISOString(),
+    },
+
+    updatedAt: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: () => new Date().toISOString(),
+    },
   },
   {
-    timestamps: true,
+    timestamps: false,
     tableName: "withdraws",
   }
 );
@@ -50,6 +99,16 @@ User.hasMany(Withdraw, {
 });
 
 Withdraw.belongsTo(User, {
+  foreignKey: "userId",
+  as: "user",
+});
+
+User.hasMany(BankDetail, {
+  foreignKey: "userId",
+  as: "bankDetails",
+});
+
+BankDetail.belongsTo(User, {
   foreignKey: "userId",
   as: "user",
 });

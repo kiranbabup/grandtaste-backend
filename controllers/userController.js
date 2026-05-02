@@ -5,6 +5,9 @@ import generateReferralCode from "../utils/generateReferralCode.js";
 import { OAuth2Client } from 'google-auth-library';
 import { Op } from "sequelize";
 import Address from "../models/AddressModel.js";
+import Withdraw from "../models/WithdrawModel.js";
+import BankDetail from "../models/BankDetailsModel.js";
+import EarningsLedger from "../models/EarningsLedgerModel.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -415,9 +418,6 @@ export const googleAuth = async (req, res) => {
   }
 };
 
-// @desc    Get user profile
-// @route   GET /api/users/profile
-// @access  Private
 export const getUserProfile = async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id, {
@@ -476,9 +476,6 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-// @desc    Update user profile
-// @route   PUT /api/users/profile
-// @access  Private
 export const updateUserProfile = async (req, res) => {
   try {
     const { name, email } = req.body;
@@ -650,7 +647,6 @@ export const getUserAddresses = async (req, res) => {
 };
 
 // # DELETE ADDRESS
-
 export const deleteAddress = async (req, res) => {
   try {
     const address = await Address.findOne({
@@ -742,17 +738,6 @@ export const forgotPassword = async (req, res) => {
       error: error.message,
     });
   }
-};
-
-// ROLE ACCESS CONTROL
-const canManageRole = (loggedInRole, targetRole) => {
-  const permissions = {
-    superadmin: ["admin", "supervisor", "employee", "customer"],
-    admin: ["supervisor", "employee", "customer"],
-    supervisor: ["employee", "customer"],
-  };
-
-  return permissions[loggedInRole]?.includes(targetRole);
 };
 
 // GET USERS BY ROLE
@@ -1096,7 +1081,17 @@ export const searchUsersByHierarchy = async (req, res) => {
 // admin / supervisor / employee only
 export const requestWithdraw = async (req, res) => {
   try {
-    const { withdrawAmount } = req.body;
+    const {
+      withdrawAmount,
+      bankDetailId,
+      ac_holder_name,
+      ac_no,
+      ifsc_code,
+      branch_name,
+      upi,
+      payment_mode,
+    } = req.body;
+
     const user = req.user;
 
     // Role validation
@@ -1120,14 +1115,14 @@ export const requestWithdraw = async (req, res) => {
       });
     }
 
-    // Account status validation
+    // Active account validation
     if (user.status !== "active") {
       return res.status(403).json({
         message: `Account is ${user.status}. Withdrawal denied.`,
       });
     }
 
-    // Prevent multiple pending/inprogress requests
+    // Prevent multiple pending requests
     const existingPendingRequest = await Withdraw.findOne({
       where: {
         userId: user.id,
@@ -1153,12 +1148,68 @@ export const requestWithdraw = async (req, res) => {
       });
     }
 
-    // Create withdraw request
-    const withdrawRequest = await Withdraw.create({
+    let withdrawData = {
       userId: user.id,
       withdrawAmount,
       status: "pending",
-    });
+    };
+
+    // OPTION 1: Use saved bank detail
+    if (bankDetailId) {
+      const savedBank = await BankDetail.findOne({
+        where: {
+          id: bankDetailId,
+          userId: user.id,
+        },
+      });
+
+      if (!savedBank) {
+        return res.status(404).json({
+          message: "Selected bank detail not found",
+        });
+      }
+
+      withdrawData = {
+        ...withdrawData,
+        ac_no: savedBank.ac_no,
+        ifsc_code: savedBank.ifsc_code,
+        branch_name: savedBank.branch_name,
+        ac_holder_name: savedBank.ac_holder_name,
+        upi: savedBank.upi,
+        payment_mode: savedBank.upi ? "upi" : "bank_transfer",
+      };
+    }
+
+    // OPTION 2: Manual entry
+    else {
+      if (!ac_holder_name) {
+        return res.status(400).json({
+          message: "Account holder name is required",
+        });
+      }
+
+      if (!ac_no && !upi) {
+        return res.status(400).json({
+          message:
+            "Either bank account details or UPI details are required",
+        });
+      }
+
+      withdrawData = {
+        ...withdrawData,
+        ac_no: ac_no || null,
+        ifsc_code: ifsc_code || null,
+        branch_name: branch_name || null,
+        ac_holder_name,
+        upi: upi || null,
+        payment_mode:
+          payment_mode ||
+          (upi ? "upi" : "bank_transfer"),
+      };
+    }
+
+    // Create withdraw request
+    const withdrawRequest = await Withdraw.create(withdrawData);
 
     return res.status(201).json({
       message: "Withdraw request submitted successfully",

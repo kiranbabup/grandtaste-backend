@@ -224,7 +224,7 @@ Order.beforeSave(async (order) => {
     totalEmployeeEarning +=
       parseFloat(item.employeeEarningValue || 0) * parseInt(item.qty || 0);
 
-      totalGstAmount +=
+    totalGstAmount +=
       parseFloat(item.totalSellingPriceGst || 0);
   });
 

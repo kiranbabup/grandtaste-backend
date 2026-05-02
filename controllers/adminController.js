@@ -1,5 +1,19 @@
 // adminController.js
+import EarningsLedger from "../models/EarningsLedgerModel.js";
 import User from "../models/User.js";
+import Withdraw from "../models/WithdrawModel.js";
+import Payments from "../models/payments_model.js";
+
+// ROLE ACCESS CONTROL
+const canManageRole = (loggedInRole, targetRole) => {
+  const permissions = {
+    superadmin: ["admin", "supervisor", "employee", "customer"],
+    admin: ["supervisor", "employee", "customer"],
+    supervisor: ["employee", "customer"],
+  };
+
+  return permissions[loggedInRole]?.includes(targetRole);
+};
 
 // UPDATE USER STATUS
 export const updateUserStatus = async (req, res) => {
@@ -99,7 +113,11 @@ export const getAllWithdrawRequests = async (req, res) => {
 export const updateWithdrawStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const {
+      status,
+      payment_transaction_ID,
+      payment_mode,
+    } = req.body;
 
     const validStatuses = [
       "pending",
@@ -123,30 +141,94 @@ export const updateWithdrawStatus = async (req, res) => {
       });
     }
 
-    // Prevent duplicate sent processing
-    if (withdraw.status === "sent") {
-      return res.status(400).json({
-        message: "Withdraw already processed",
+    const user = await User.findByPk(withdraw.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
       });
     }
 
-    withdraw.status = status;
-    await withdraw.save();
+    // Prevent modifying completed requests
+    if (["sent", "failed", "rejected"].includes(withdraw.status)) {
+      return res.status(400).json({
+        message: "Withdraw request already finalized",
+      });
+    }
 
-    // Only when successfully sent
-    if (status === "sent") {
-      const user = await User.findByPk(withdraw.userId);
+    // =========================
+    // PENDING -> INPROGRESS
+    // =========================
+    if (withdraw.status === "pending" && status === "inprogress") {
+      withdraw.status = "inprogress";
+      withdraw.updatedAt = new Date().toISOString();
 
+      await withdraw.save();
+
+      return res.json({
+        message: "Withdraw moved to inprogress",
+        withdraw,
+      });
+    }
+
+    // =========================
+    // INPROGRESS -> SENT
+    // =========================
+    if (withdraw.status === "inprogress" && status === "sent") {
+      if (!payment_transaction_ID || !payment_mode) {
+        return res.status(400).json({
+          message:
+            "payment_transaction_ID and payment_mode are required for sent status",
+        });
+      }
+
+      withdraw.status = "sent";
+      withdraw.payment_transaction_ID = payment_transaction_ID;
+      withdraw.payment_mode = payment_mode;
+      withdraw.updatedAt = new Date().toISOString();
+
+      await withdraw.save();
+
+      // Deduct from withdrawable balance permanently
       user.withdrawn =
         parseFloat(user.withdrawn || 0) +
         parseFloat(withdraw.withdrawAmount);
 
       await user.save();
+
+      return res.json({
+        message: "Withdraw marked as sent successfully",
+        withdraw,
+      });
     }
 
-    return res.json({
-      message: "Withdraw status updated successfully",
-      withdraw,
+    // =========================
+    // INPROGRESS -> FAILED / REJECTED
+    // =========================
+    if (
+      withdraw.status === "inprogress" &&
+      ["failed", "rejected"].includes(status)
+    ) {
+      withdraw.status = status;
+      withdraw.updatedAt = new Date().toISOString();
+
+      await withdraw.save();
+
+      // Return amount back to earnings
+      user.earnings =
+        parseFloat(user.earnings || 0) +
+        parseFloat(withdraw.withdrawAmount);
+
+      await user.save();
+
+      return res.json({
+        message: `Withdraw marked as ${status} and amount refunded`,
+        withdraw,
+      });
+    }
+
+    return res.status(400).json({
+      message: `Invalid status transition from ${withdraw.status} to ${status}`,
     });
 
   } catch (error) {
@@ -313,6 +395,50 @@ export const getUserEarningsHistory = async (req, res) => {
 
     return res.status(500).json({
       message: "Failed to fetch user earnings history",
+      error: error.message,
+    });
+  }
+};
+
+// SUPERADMIN GET ALL PAYMENTS WITH PAGINATION
+export const getPayments = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Payments.findAndCountAll({
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: [
+            "id",
+            "name",
+            "phone",
+            "role",
+            "status",
+            "referalcode",
+          ],
+        },
+      ],
+      limit,
+      offset,
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.status(200).json({
+      totalItems: count,
+      payments: rows,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+    });
+
+  } catch (error) {
+    console.error("Get Payments Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch payments",
       error: error.message,
     });
   }

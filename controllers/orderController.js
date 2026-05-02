@@ -4,6 +4,7 @@ import { Cart, CartItem } from "../models/Cart.js";
 import User from "../models/User.js";
 import EarningsLedger from "../models/EarningsLedgerModel.js";
 import Notification from "../models/NotificationModel.js";
+import Payments from "../models/payments_model.js";
 
 // CREATE ORDER
 export const createOrder = async (req, res) => {
@@ -16,7 +17,11 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    const { shippingAddress, paymentMethod } = req.body;
+    const {
+      shippingAddress,
+      paymentMethod,
+      paymentDetails, // Razorpay details
+    } = req.body;
 
     if (!shippingAddress) {
       return res.status(400).json({
@@ -24,6 +29,7 @@ export const createOrder = async (req, res) => {
       });
     }
 
+    // GET USER CART
     const cart = await Cart.findOne({
       where: { userId: user.id },
       include: {
@@ -38,13 +44,22 @@ export const createOrder = async (req, res) => {
       });
     }
 
+    // CREATE ORDER FIRST
     const order = await Order.create({
       userId: user.id,
       shippingAddress,
       phone: shippingAddress.phone || user.phone,
       paymentMethod: paymentMethod || "Cash on Delivery",
+      paymentStatus:
+        paymentMethod === "Razorpay"
+          ? paymentDetails?.status || "Pending"
+          : "Pending",
+      isPaid:
+        paymentMethod === "Razorpay" &&
+        paymentDetails?.status === "Success",
     });
 
+    // MOVE CART ITEMS TO ORDER ITEMS
     for (const item of cart.items) {
       await OrderItem.create({
         orderId: order.id,
@@ -67,30 +82,77 @@ export const createOrder = async (req, res) => {
       });
     }
 
+    // RE-CALCULATE TOTALS
     await order.save();
 
-    await cart.destroy();
-
-    // Notify employee by pincode
-    const employee = await User.findOne({
-      where: {
-        role: "employee",
-        pincode: shippingAddress.pincode,
-        status: "active",
-      },
-    });
-
-    if (employee) {
-      await Notification.create({
-        userId: employee.id,
-        title: "New Order Received",
-        message: `New order ${order.orderId} assigned to your pincode.`,
-        type: "order",
-        roleToDisplay: "employee",
+    // HANDLE PAYMENT MODEL ENTRY
+    if (paymentMethod === "Razorpay") {
+      await Payments.create({
+        userId: user.id,
+        orderId: order.id,
+        username: user.name,
+        role: user.role,
+        transaction_id:
+          paymentDetails?.transaction_id ||
+          `RAZORPAY-${Date.now()}`,
+        razorpay_order_id:
+          paymentDetails?.razorpay_order_id || null,
+        razorpay_payment_id:
+          paymentDetails?.razorpay_payment_id || null,
+        razorpay_signature:
+          paymentDetails?.razorpay_signature || null,
+        payment_method: "razorpay",
+        credited_amount: order.totalPrice,
+        currency: "INR",
+        status: paymentDetails?.status || "Pending",
+        failure_reason:
+          paymentDetails?.failure_reason || null,
+      });
+    } else {
+      await Payments.create({
+        userId: user.id,
+        orderId: order.id,
+        username: user.name,
+        role: user.role,
+        transaction_id: `COD-${Date.now()}`,
+        payment_method: "cod",
+        credited_amount: order.totalPrice,
+        currency: "INR",
+        status: "Pending",
       });
     }
 
-    // Notify website staff
+    // EMPLOYEE ASSIGNMENT    // ONLY IF COD OR PAYMENT SUCCESS
+    let assignedEmployee = null;
+
+    if (
+      paymentMethod === "Cash on Delivery" ||
+      (paymentMethod === "Razorpay" &&
+        paymentDetails?.status === "Success")
+    ) {
+      assignedEmployee = await User.findOne({
+        where: {
+          role: "employee",
+          pincode: shippingAddress.pincode,
+          status: "active",
+        },
+      });
+
+      if (assignedEmployee) {
+        order.assignedEmployeeId = assignedEmployee.id;
+        await order.save();
+
+        await Notification.create({
+          userId: assignedEmployee.id,
+          title: "New Order Received",
+          message: `New order ${order.orderId} assigned to your pincode.`,
+          type: "order",
+          roleToDisplay: ["employee"],
+        });
+      }
+    }
+
+    // WEBSITE STAFF NOTIFICATION
     const websiteUsers = await User.findAll({
       where: {
         role: {
@@ -103,15 +165,37 @@ export const createOrder = async (req, res) => {
       await Notification.create({
         userId: staff.id,
         title: "New Order Placed",
-        message: `Order ${order.orderId} has been placed.`,
+        message: `Order ${order.orderId} has been placed by ${user.name}.`,
         type: "order",
-        roleToDisplay: staff.role,
+        roleToDisplay: [staff.role],
       });
     }
 
-    return res.status(201).json(order);
+    // PAYMENT FAILED OR PENDING
+    if (
+      paymentMethod === "Razorpay" &&
+      paymentDetails?.status !== "Success"
+    ) {
+      order.status = "Pending";
+      order.paymentStatus =
+        paymentDetails?.status || "Failed";
+      order.isPaid = false;
+      order.assignedEmployeeId = null;
+
+      await order.save();
+    }
+
+    // CLEAR CART
+    await cart.destroy();
+
+    return res.status(201).json({
+      message: "Order created successfully",
+      order,
+    });
 
   } catch (error) {
+    console.error("Create Order Error:", error);
+
     return res.status(500).json({
       message: "Failed to create order",
       error: error.message,
@@ -123,17 +207,26 @@ export const createOrder = async (req, res) => {
 export const getMyOrders = async (req, res) => {
   try {
     const orders = await Order.findAll({
-      where: { userId: req.user.id },
-      include: {
-        model: OrderItem,
-        as: "orderItems",
+      where: {
+        userId: req.user.id,
       },
+      include: [
+        {
+          model: OrderItem,
+          as: "orderItems",
+        },
+      ],
       order: [["createdAt", "DESC"]],
     });
 
-    return res.json(orders);
+    return res.status(200).json({
+      totalOrders: orders.length,
+      orders,
+    });
 
   } catch (error) {
+    console.error("Get My Orders Error:", error);
+
     return res.status(500).json({
       message: "Failed to fetch orders",
       error: error.message,
@@ -145,10 +238,16 @@ export const getMyOrders = async (req, res) => {
 export const getOrderById = async (req, res) => {
   try {
     const order = await Order.findByPk(req.params.id, {
-      include: {
-        model: OrderItem,
-        as: "orderItems",
-      },
+      include: [
+        {
+          model: OrderItem,
+          as: "orderItems",
+        },
+        {
+          model: User,
+          attributes: ["id", "name", "phone", "role", "pincode"],
+        },
+      ],
     });
 
     if (!order) {
@@ -157,6 +256,7 @@ export const getOrderById = async (req, res) => {
       });
     }
 
+    // CUSTOMER can only view own orders
     if (
       req.user.role === "customer" &&
       order.userId !== req.user.id
@@ -166,9 +266,21 @@ export const getOrderById = async (req, res) => {
       });
     }
 
-    return res.json(order);
+    // EMPLOYEE can only view assigned pincode orders
+    if (
+      req.user.role === "employee" &&
+      order.shippingAddress?.pincode !== req.user.pincode
+    ) {
+      return res.status(403).json({
+        message: "Access denied",
+      });
+    }
+
+    return res.status(200).json(order);
 
   } catch (error) {
+    console.error("Get Order By ID Error:", error);
+
     return res.status(500).json({
       message: "Failed to fetch order",
       error: error.message,
@@ -176,7 +288,7 @@ export const getOrderById = async (req, res) => {
   }
 };
 
-// GET ALL ORDERS (PAGINATED)
+// GET ALL ORDERS (WEBSITE STAFF)
 export const getAllOrders = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -187,7 +299,18 @@ export const getAllOrders = async (req, res) => {
       include: [
         {
           model: User,
-          attributes: ["id", "name", "phone", "role"],
+          attributes: [
+            "id",
+            "name",
+            "phone",
+            "role",
+            "pincode",
+            "referalcode",
+          ],
+        },
+        {
+          model: OrderItem,
+          as: "orderItems",
         },
       ],
       order: [["createdAt", "DESC"]],
@@ -195,7 +318,7 @@ export const getAllOrders = async (req, res) => {
       offset,
     });
 
-    return res.json({
+    return res.status(200).json({
       totalItems: count,
       totalPages: Math.ceil(count / limit),
       currentPage: page,
@@ -203,6 +326,8 @@ export const getAllOrders = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("Get All Orders Error:", error);
+
     return res.status(500).json({
       message: "Failed to fetch all orders",
       error: error.message,
@@ -214,6 +339,7 @@ export const getAllOrders = async (req, res) => {
 export const getOrdersBySearchPhone = async (req, res) => {
   try {
     const { phone } = req.params;
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
@@ -224,16 +350,28 @@ export const getOrdersBySearchPhone = async (req, res) => {
           [Op.like]: `%${phone}%`,
         },
       },
-      include: {
-        model: OrderItem,
-        as: "orderItems",
-      },
+      include: [
+        {
+          model: User,
+          attributes: [
+            "id",
+            "name",
+            "phone",
+            "role",
+            "pincode",
+          ],
+        },
+        {
+          model: OrderItem,
+          as: "orderItems",
+        },
+      ],
       limit,
       offset,
       order: [["createdAt", "DESC"]],
     });
 
-    return res.json({
+    return res.status(200).json({
       totalItems: count,
       totalPages: Math.ceil(count / limit),
       currentPage: page,
@@ -241,6 +379,8 @@ export const getOrdersBySearchPhone = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("Search Orders By Phone Error:", error);
+
     return res.status(500).json({
       message: "Failed to search orders",
       error: error.message,
@@ -248,31 +388,54 @@ export const getOrdersBySearchPhone = async (req, res) => {
   }
 };
 
-// GET EMPLOYEE ORDERS
+// GET EMPLOYEE ORDERS BY PINCODE
 export const getOrdersByEmployeePincode = async (req, res) => {
   try {
+    if (req.user.role !== "employee") {
+      return res.status(403).json({
+        message: "Employee access only",
+      });
+    }
+
     const orders = await Order.findAll({
       where: {
-        shippingAddress: {
-          pincode: req.user.pincode,
+        assignedEmployeeId: req.user.id,
+      },
+      include: [
+        {
+          model: OrderItem,
+          as: "orderItems",
         },
-      },
-      include: {
-        model: OrderItem,
-        as: "orderItems",
-      },
+        {
+          model: User,
+          attributes: [
+            "id",
+            "name",
+            "phone",
+            "role",
+            "pincode",
+          ],
+        },
+      ],
       order: [["createdAt", "DESC"]],
     });
 
-    return res.json(orders);
+    return res.status(200).json({
+      totalOrders: orders.length,
+      orders,
+    });
 
   } catch (error) {
+    console.error("Get Employee Orders Error:", error);
+
     return res.status(500).json({
       message: "Failed to fetch employee orders",
       error: error.message,
     });
   }
 };
+
+
 
 // CUSTOMER REQUEST CANCEL
 export const requestCancelOrder = async (req, res) => {
@@ -380,6 +543,8 @@ export const requestReturnOrder = async (req, res) => {
     });
   }
 };
+
+
 
 // EMPLOYEE STATUS UPDATE
 export const employeeUpdateOrderStatus = async (req, res) => {

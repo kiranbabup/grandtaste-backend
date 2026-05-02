@@ -27,6 +27,7 @@ import {
   appStaffOnly,
   customerOnly
 } from "../middleware/authMiddleware.js";
+import { deleteBankDetail, getUserBankDetails, storeBankDetails, updateBankDetails } from "../controllers/bankController.js";
 
 const router = express.Router();
 
@@ -59,6 +60,12 @@ router.put("/users/status/:id", protect, websiteStaff, updateUserStatus);
 // EARNINGS
 router.get("/earnings/history", protect, getMyEarningsHistory);
 router.get("/earnings/user/:userId", protect, websiteStaff, getUserEarningsHistory);
+
+// Bank Details
+router.post("/bank-details", protect, appStaffOnly, storeBankDetails);
+router.get("/bank-details", protect, appStaffOnly, getUserBankDetails);
+router.put("/bank-details/:id", protect, appStaffOnly, updateBankDetails);
+router.delete("/bank-details/:id", protect, appStaffOnly, deleteBankDetail);
 
 // WITHDRAW
 router.post("/withdraw/request", protect, appStaffOnly, requestWithdraw);
