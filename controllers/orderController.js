@@ -48,9 +48,9 @@ export const createOrder = async (req, res) => {
     const order = await Order.create({
       userId: user.id,
       shippingAddress,
-      phone: shippingAddress.phone || user.phone,
+      deliveryPincode: shippingAddress.pincode || req.body.deliveryPincode || user.pincode || "000000",
+      phone: shippingAddress.phone || user.phone || "0000000000",
       paymentMethod: paymentMethod || "Cash on Delivery",
-      deliveryPincode: shippingAddress.pincode,
       paymentStatus:
         paymentMethod === "Razorpay"
           ? paymentDetails?.status || "Pending"
