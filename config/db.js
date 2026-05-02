@@ -29,8 +29,9 @@ const connectDB = async () => {
     if (process.env.NODE_ENV === "development") {
       await sequelize.sync({ alter: true }).catch((err) => {
         // Ignore common sync errors - table/index already exists or key issues
+        const errorCode = err.code || err.parent?.code || err.original?.code;
         const ignoredErrors = ['ER_DUP_KEYNAME', 'ER_TOO_MANY_KEYS', 'ER_DUP_ENTRY', 'ER_KEY_COLUMN_DOES_NOT_EXIST'];
-        if (ignoredErrors.includes(err.code)) {
+        if (ignoredErrors.includes(errorCode)) {
           console.log("Table sync completed (some indexes may already exist)");
         } else {
           throw err;
