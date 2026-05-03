@@ -132,7 +132,7 @@ export const createOrder = async (req, res) => {
       assignedEmployee = await User.findOne({
         where: {
           role: "employee",
-          pincode: shippingAddress.pincode,
+          pincode: shippingAddress.pincode || req.body.deliveryPincode || user.pincode,
           status: "active",
         },
       });
