@@ -775,13 +775,47 @@ export const getUsersByRoleHierarchy = async (req, res) => {
         });
       }
 
-      whereClause = {
-        role,
-        [Op.or]: [
-          { referedby: loggedInUser.referalcode },
-          { parentId: loggedInUser.id },
-        ],
-      };
+      // Get all supervisors referred by this admin
+      const supervisors = await User.findAll({
+        where: { referedby: loggedInUser.referalcode },
+        attributes: ["referalcode"],
+      });
+      const supervisorCodes = supervisors.map((s) => s.referalcode);
+
+      if (role === "supervisor") {
+        whereClause = {
+          role,
+          referedby: loggedInUser.referalcode,
+        };
+      } else if (role === "employee") {
+        whereClause = {
+          role,
+          [Op.or]: [
+            { referedby: loggedInUser.referalcode },
+            { referedby: { [Op.in]: supervisorCodes } },
+          ],
+        };
+      } else if (role === "customer") {
+        const employees = await User.findAll({
+          where: {
+            [Op.or]: [
+              { referedby: loggedInUser.referalcode },
+              { referedby: { [Op.in]: supervisorCodes } },
+            ],
+          },
+          attributes: ["referalcode"],
+        });
+        const employeeCodes = employees.map((e) => e.referalcode);
+
+        whereClause = {
+          role,
+          [Op.or]: [
+            { referedby: loggedInUser.referalcode },
+            { referedby: { [Op.in]: supervisorCodes } },
+            { referedby: { [Op.in]: employeeCodes } },
+          ],
+        };
+      }
     }
 
     // SUPERVISOR
@@ -792,10 +826,26 @@ export const getUsersByRoleHierarchy = async (req, res) => {
         });
       }
 
-      whereClause = {
-        role,
-        referedby: loggedInUser.referalcode,
-      };
+      if (role === "employee") {
+        whereClause = {
+          role,
+          referedby: loggedInUser.referalcode,
+        };
+      } else if (role === "customer") {
+        const employees = await User.findAll({
+          where: { referedby: loggedInUser.referalcode },
+          attributes: ["referalcode"],
+        });
+        const employeeCodes = employees.map((e) => e.referalcode);
+
+        whereClause = {
+          role,
+          [Op.or]: [
+            { referedby: loggedInUser.referalcode },
+            { referedby: { [Op.in]: employeeCodes } },
+          ],
+        };
+      }
     }
 
     // EMPLOYEE
