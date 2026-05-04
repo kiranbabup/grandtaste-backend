@@ -379,7 +379,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
         if (adminEarning > 0) {
           admin.earnings = parseFloat(admin.earnings || 0) + adminEarning;
           await admin.save();
-          await EarningsLedger.create({ userId: admin.id, orderId: order.id, amount: adminEarning, role: "admin" });
+          await EarningsLedger.create({ userId: admin.id, fromUserId: order.userId, orderId: order.id, amount: adminEarning, level: "admin" });
           await Notification.create({
             userId: admin.id,
             title: "Earnings Added",
@@ -396,7 +396,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
         if (supervisorEarning > 0) {
           supervisor.earnings = parseFloat(supervisor.earnings || 0) + supervisorEarning;
           await supervisor.save();
-          await EarningsLedger.create({ userId: supervisor.id, orderId: order.id, amount: supervisorEarning, role: "supervisor" });
+          await EarningsLedger.create({ userId: supervisor.id, fromUserId: order.userId, orderId: order.id, amount: supervisorEarning, level: "supervisor" });
           await Notification.create({
             userId: supervisor.id,
             title: "Earnings Added",
@@ -413,7 +413,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
         if (employeeEarning > 0) {
           referralEmployee.earnings = parseFloat(referralEmployee.earnings || 0) + employeeEarning;
           await referralEmployee.save();
-          await EarningsLedger.create({ userId: referralEmployee.id, orderId: order.id, amount: employeeEarning, role: "employee" });
+          await EarningsLedger.create({ userId: referralEmployee.id, fromUserId: order.userId, orderId: order.id, amount: employeeEarning, level: "employee" });
           await Notification.create({
             userId: referralEmployee.id,
             title: "Earnings Added",
