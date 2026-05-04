@@ -1,5 +1,5 @@
 import express from "express";
-import { adminUpdateOrderStatus, createOrder, employeeUpdateOrderStatus, getAllOrders, getMyOrders, getOrderById, getOrdersByEmployeePincode, getOrdersBySearchPhone, requestCancelOrder, requestReturnOrder, supervisorUpdateOrderStatus } from "../controllers/orderController.js";
+import { adminUpdateOrderStatus, createOrder, employeeUpdateDeliveryStatus, employeeUpdateOrderStatus, getAllOrders, getMyOrders, getOrderById, getOrdersByEmployeePincode, getOrdersBySearchPhone, requestCancelOrder, requestReturnOrder, supervisorUpdateOrderStatus } from "../controllers/orderController.js";
 
 import {
   protect,
@@ -25,6 +25,7 @@ router.put("/requestReturn/:id", protect, customerOnly, requestReturnOrder);
 // EMPLOYEE ROUTES
 router.get("/employeeOrders", protect, employeeOnly, getOrdersByEmployeePincode);
 router.put("/employeeUpdateStatus/:id", protect, employeeOnly, employeeUpdateOrderStatus);
+router.put("/employeeUpdateDeliveryStatus/:id", protect, employeeOnly, employeeUpdateDeliveryStatus);
 
 // SUPERVISOR ROUTES
 router.put("/supervisorUpdateStatus/:id", protect, websiteStaff, supervisorUpdateOrderStatus);
