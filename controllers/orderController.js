@@ -610,8 +610,6 @@ export const requestReturnOrder = async (req, res) => {
   }
 };
 
-
-
 // EMPLOYEE STATUS UPDATE
 export const employeeUpdateOrderStatus = async (req, res) => {
   try {
@@ -765,11 +763,16 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
 
     order.status = status;
 
-    const { orderUser, admin, supervisor, referralEmployee } =
-      await populateOrderReferralIds(order);
-
     if (status === "Delivered") {
       order.isDelivered = true;
+
+      // Update isPaid for COD orders
+      if (order.paymentMethod === "Cash on Delivery" && !order.isPaid) {
+        order.isPaid = true;
+      }
+
+      const { orderUser, admin, supervisor, referralEmployee } =
+        await populateOrderReferralIds(order);
 
       if (admin) {
         admin.earnings += parseFloat(order.totalAdminEarning || 0);
