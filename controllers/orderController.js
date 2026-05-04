@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import EarningsLedger from "../models/EarningsLedgerModel.js";
 import Notification from "../models/NotificationModel.js";
 import Payments from "../models/payments_model.js";
+import Product from "../models/Product.js";
 
 const getOrderReferralChain = async (orderUser) => {
   let admin = null;
@@ -268,6 +269,179 @@ export const createOrder = async (req, res) => {
     });
   }
 };
+
+// EMPLOYEE STATUS UPDATE
+export const employeeUpdateOrderStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    const allowedStatuses = [
+      "Accepted",
+      "Rejected",
+      "Return - Approved",
+      "Cancelled",
+    ];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(403).json({
+        message: "Invalid employee status update",
+      });
+    }
+
+    const order = await Order.findByPk(req.params.id, {
+      include: {
+        model: OrderItem,
+        as: "orderItems",
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        message: "Order not found",
+      });
+    }
+
+    // Deduct stock only when order is accepted
+    if (status === "Accepted") {
+      for (const item of order.orderItems) {
+        const product = await Product.findByPk(item.productId);
+
+        if (!product) {
+          return res.status(404).json({
+            message: `Product not found for item ${item.productId}`,
+          });
+        }
+
+        // Check stock availability
+        if (product.stock < item.quantity) {
+          return res.status(400).json({
+            message: `${product.productname} has insufficient stock`,
+          });
+        }
+
+        // Reduce stock
+        product.stock = product.stock - item.quantity;
+        await product.save();
+      }
+    }
+
+    order.status = status;
+    await order.save();
+
+    await Notification.create({
+      userId: order.userId,
+      title: "Order Status Updated",
+      message: `Order ${order.orderId} status updated to ${status}`,
+      type: "order",
+      roleToDisplay: "customer",
+    });
+
+    return res.json({
+      message: "Order updated successfully",
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to update order",
+      error: error.message,
+    });
+  }
+};
+
+export const employeeUpdateDeliveryStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const allowedStatuses = ["Out for Delivery", "Delivered"];
+    console.log("Incoming status:", status);
+    if (!allowedStatuses.includes(status)) {
+      return res.status(403).json({ message: "Invalid delivery status update" });
+    }
+
+    const order = await Order.findByPk(req.params.id, {
+      include: { model: OrderItem, as: "orderItems" },
+    });
+
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    order.status = status;
+
+    if (status === "Delivered") {
+      if (order.paymentMethod === "Cash on Delivery" && !order.isPaid) {
+        order.isPaid = true;
+      }
+      order.isDelivered = true;
+
+      const { orderUser, admin, supervisor, referralEmployee } = await populateOrderReferralIds(order);
+
+      // Admin Earnings
+      if (admin) {
+        const adminEarning = parseFloat(order.totalAdminEarning || 0);
+        if (adminEarning > 0) {
+          admin.earnings = parseFloat(admin.earnings || 0) + adminEarning;
+          await admin.save();
+          await EarningsLedger.create({ userId: admin.id, orderId: order.id, amount: adminEarning, role: "admin" });
+          await Notification.create({
+            userId: admin.id,
+            title: "Earnings Added",
+            message: `₹${adminEarning} credited from order ${order.orderId}`,
+            type: "earning",
+            roleToDisplay: "admin",
+          });
+        }
+      }
+
+      // Supervisor Earnings
+      if (supervisor && orderUser?.role !== "admin") {
+        const supervisorEarning = parseFloat(order.totalSupervisorEarning || 0);
+        if (supervisorEarning > 0) {
+          supervisor.earnings = parseFloat(supervisor.earnings || 0) + supervisorEarning;
+          await supervisor.save();
+          await EarningsLedger.create({ userId: supervisor.id, orderId: order.id, amount: supervisorEarning, role: "supervisor" });
+          await Notification.create({
+            userId: supervisor.id,
+            title: "Earnings Added",
+            message: `₹${supervisorEarning} credited from order ${order.orderId}`,
+            type: "earning",
+            roleToDisplay: "supervisor",
+          });
+        }
+      }
+
+      // Employee Earnings
+      if (referralEmployee && ["customer", "employee"].includes(orderUser?.role)) {
+        const employeeEarning = parseFloat(order.totalEmployeeEarning || 0);
+        if (employeeEarning > 0) {
+          referralEmployee.earnings = parseFloat(referralEmployee.earnings || 0) + employeeEarning;
+          await referralEmployee.save();
+          await EarningsLedger.create({ userId: referralEmployee.id, orderId: order.id, amount: employeeEarning, role: "employee" });
+          await Notification.create({
+            userId: referralEmployee.id,
+            title: "Earnings Added",
+            message: `₹${employeeEarning} credited from order ${order.orderId}`,
+            type: "earning",
+            roleToDisplay: "employee",
+          });
+        }
+      }
+    }
+
+    await order.save();
+
+    await Notification.create({
+      userId: order.userId,
+      title: "Order Delivered",
+      message: `Your order ${order.orderId} has been successfully delivered!`,
+      type: "order",
+      roleToDisplay: "customer",
+    });
+
+    return res.json({ message: "Order delivered successfully" });
+  } catch (error) {
+    console.error("Update Delivery Status Error:", error);
+    return res.status(500).json({ message: "Failed to update delivery status", error: error.message });
+  }
+};
+
 
 // GET MY ORDERS
 export const getMyOrders = async (req, res) => {
@@ -610,177 +784,6 @@ export const requestReturnOrder = async (req, res) => {
   }
 };
 
-// EMPLOYEE STATUS UPDATE
-export const employeeUpdateOrderStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-
-    const allowedStatuses = [
-      "Accepted",
-      "Rejected",
-      "Return - Approved",
-      "Cancelled",
-    ];
-
-    if (!allowedStatuses.includes(status)) {
-      return res.status(403).json({
-        message: "Invalid employee status update",
-      });
-    }
-
-    const order = await Order.findByPk(req.params.id, {
-      include: {
-        model: OrderItem,
-        as: "orderItems",
-      },
-    });
-
-    if (!order) {
-      return res.status(404).json({
-        message: "Order not found",
-      });
-    }
-
-    // Deduct stock only when order is accepted
-    if (status === "Accepted") {
-      for (const item of order.orderItems) {
-        const product = await Product.findByPk(item.productId);
-
-        if (!product) {
-          return res.status(404).json({
-            message: `Product not found for item ${item.productId}`,
-          });
-        }
-
-        // Check stock availability
-        if (product.stock < item.quantity) {
-          return res.status(400).json({
-            message: `${product.productname} has insufficient stock`,
-          });
-        }
-
-        // Reduce stock
-        product.stock = product.stock - item.quantity;
-        await product.save();
-      }
-    }
-
-    order.status = status;
-    await order.save();
-
-    await Notification.create({
-      userId: order.userId,
-      title: "Order Status Updated",
-      message: `Order ${order.orderId} status updated to ${status}`,
-      type: "order",
-      roleToDisplay: "customer",
-    });
-
-    return res.json({
-      message: "Order updated successfully",
-    });
-
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to update order",
-      error: error.message,
-    });
-  }
-};
-
-export const employeeUpdateDeliveryStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-    const allowedStatuses = ["Out for Delivery", "Delivered"];
-
-    if (!allowedStatuses.includes(status)) {
-      return res.status(403).json({ message: "Invalid delivery status update" });
-    }
-
-    const order = await Order.findByPk(req.params.id, {
-      include: { model: OrderItem, as: "orderItems" },
-    });
-
-    if (!order) return res.status(404).json({ message: "Order not found" });
-
-    order.status = status;
-
-    if (status === "Delivered") {
-      if (order.paymentMethod === "Cash on Delivery" && !order.isPaid) {
-        order.isPaid = true;
-      }
-      order.isDelivered = true;
-
-      const { orderUser, admin, supervisor, referralEmployee } = await populateOrderReferralIds(order);
-
-      // Admin Earnings
-      if (admin) {
-        const adminEarning = parseFloat(order.totalAdminEarning || 0);
-        if (adminEarning > 0) {
-          admin.earnings = parseFloat(admin.earnings || 0) + adminEarning;
-          await admin.save();
-          await EarningsLedger.create({ userId: admin.id, orderId: order.id, amount: adminEarning, role: "admin" });
-          await Notification.create({
-            userId: admin.id,
-            title: "Earnings Added",
-            message: `₹${adminEarning} credited from order ${order.orderId}`,
-            type: "earning",
-            roleToDisplay: "admin",
-          });
-        }
-      }
-
-      // Supervisor Earnings
-      if (supervisor && orderUser?.role !== "admin") {
-        const supervisorEarning = parseFloat(order.totalSupervisorEarning || 0);
-        if (supervisorEarning > 0) {
-          supervisor.earnings = parseFloat(supervisor.earnings || 0) + supervisorEarning;
-          await supervisor.save();
-          await EarningsLedger.create({ userId: supervisor.id, orderId: order.id, amount: supervisorEarning, role: "supervisor" });
-          await Notification.create({
-            userId: supervisor.id,
-            title: "Earnings Added",
-            message: `₹${supervisorEarning} credited from order ${order.orderId}`,
-            type: "earning",
-            roleToDisplay: "supervisor",
-          });
-        }
-      }
-
-      // Employee Earnings
-      if (referralEmployee && ["customer", "employee"].includes(orderUser?.role)) {
-        const employeeEarning = parseFloat(order.totalEmployeeEarning || 0);
-        if (employeeEarning > 0) {
-          referralEmployee.earnings = parseFloat(referralEmployee.earnings || 0) + employeeEarning;
-          await referralEmployee.save();
-          await EarningsLedger.create({ userId: referralEmployee.id, orderId: order.id, amount: employeeEarning, role: "employee" });
-          await Notification.create({
-            userId: referralEmployee.id,
-            title: "Earnings Added",
-            message: `₹${employeeEarning} credited from order ${order.orderId}`,
-            type: "earning",
-            roleToDisplay: "employee",
-          });
-        }
-      }
-    }
-
-    await order.save();
-
-    await Notification.create({
-      userId: order.userId,
-      title: "Order Delivered",
-      message: `Your order ${order.orderId} has been successfully delivered!`,
-      type: "order",
-      roleToDisplay: "customer",
-    });
-
-    return res.json({ message: "Order delivered successfully" });
-  } catch (error) {
-    console.error("Update Delivery Status Error:", error);
-    return res.status(500).json({ message: "Failed to update delivery status", error: error.message });
-  }
-};
 
 // SUPERVISOR STATUS UPDATE
 export const supervisorUpdateOrderStatus = async (req, res) => {

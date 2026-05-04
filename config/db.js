@@ -50,7 +50,8 @@ const connectDB = async () => {
     const shouldSync = process.env.NODE_ENV !== "production" || forceSync;
 
     if (shouldSync) {
-      const syncOptions = forceSync ? { alter: true } : {};
+      // const syncOptions = forceSync ? { alter: true } : {};
+      const syncOptions = forceSync ? { force: false } : {};
       console.log(
         `Running sequelize sync with options: ${JSON.stringify(syncOptions)}`
       );

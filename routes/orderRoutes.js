@@ -4,7 +4,6 @@ import { adminUpdateOrderStatus, createOrder, employeeUpdateDeliveryStatus, empl
 import {
   protect,
   websiteStaff,
-  appStaffOnly,
   employeeOnly,
   customerOnly,
 } from "../middleware/authMiddleware.js";
