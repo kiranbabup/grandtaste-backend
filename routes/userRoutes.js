@@ -56,12 +56,12 @@ router.delete("/address/:id", protect, deleteAddress);
 router.get("/users/by-role/:role", protect, getUsersByRoleHierarchy);
 router.get("/users/downline/:referalcode", protect, getUsersByReferralHierarchy);
 router.get("/users/search/:searchString", protect, websiteStaff, searchUsersByHierarchy);
-router.get("/users/:id", protect, websiteStaff, getUserById);
+router.get("/users/:id", protect, getUserById);
 router.put("/users/status/:id", protect, updateUserStatus);
 
 // EARNINGS
 router.get("/earnings/history", protect, getMyEarningsHistory);
-router.get("/earnings/user/:userId", protect, websiteStaff, getUserEarningsHistory);
+router.get("/earnings/user/:userId", protect, getUserEarningsHistory);
 
 // Bank Details
 router.post("/bank-details", protect, appStaffOnly, storeBankDetails);
