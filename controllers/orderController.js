@@ -50,6 +50,8 @@ const getOrderReferralChain = async (orderUser) => {
 
 const populateOrderReferralIds = async (order) => {
   const orderUser = await User.findByPk(order.userId);
+  const { admin, supervisor, employee: referralEmployee } =
+    await getOrderReferralChain(orderUser);
   if (!orderUser) {
     order.adminId = null;
     order.supervisorId = null;
@@ -57,8 +59,6 @@ const populateOrderReferralIds = async (order) => {
     return { orderUser: null, admin: null, supervisor: null, referralEmployee: null };
   }
 
-  const { admin, supervisor, employee: referralEmployee } =
-    await getOrderReferralChain(orderUser);
 
   order.adminId = admin?.id || null;
   order.supervisorId = supervisor?.id || null;
@@ -641,81 +641,33 @@ export const employeeUpdateOrderStatus = async (req, res) => {
       });
     }
 
-    order.status = status;
+    // Deduct stock only when order is accepted
+    if (status === "Accepted") {
+      for (const item of order.orderItems) {
+        const product = await Product.findByPk(item.productId);
 
-    const { orderUser, admin, supervisor, referralEmployee } =
-      await populateOrderReferralIds(order);
+        if (!product) {
+          return res.status(404).json({
+            message: `Product not found for item ${item.productId}`,
+          });
+        }
 
-    if (status === "Delivered") {
-      order.isDelivered = true;
+        // Check stock availability
+        if (product.stock < item.quantity) {
+          return res.status(400).json({
+            message: `${product.productname} has insufficient stock`,
+          });
+        }
 
-      if (admin) {
-        admin.earnings += parseFloat(order.totalAdminEarning || 0);
-        await admin.save();
-
-        await EarningsLedger.create({
-          userId: admin.id,
-          orderId: order.id,
-          amount: order.totalAdminEarning,
-          role: "admin",
-        });
-
-        await Notification.create({
-          userId: admin.id,
-          title: "Earnings Added",
-          message: `₹${order.totalAdminEarning} credited from order ${order.orderId}`,
-          type: "earning",
-          roleToDisplay: "admin",
-        });
-      }
-
-      if (supervisor && orderUser?.role !== "admin") {
-        supervisor.earnings += parseFloat(order.totalSupervisorEarning || 0);
-        await supervisor.save();
-
-        await EarningsLedger.create({
-          userId: supervisor.id,
-          orderId: order.id,
-          amount: order.totalSupervisorEarning,
-          role: "supervisor",
-        });
-
-        await Notification.create({
-          userId: supervisor.id,
-          title: "Earnings Added",
-          message: `₹${order.totalSupervisorEarning} credited from order ${order.orderId}`,
-          type: "earning",
-          roleToDisplay: "supervisor",
-        });
-      }
-
-      if (
-        referralEmployee &&
-        ["customer", "employee"].includes(orderUser?.role)
-      ) {
-        referralEmployee.earnings += parseFloat(order.totalEmployeeEarning || 0);
-        await referralEmployee.save();
-
-        await EarningsLedger.create({
-          userId: referralEmployee.id,
-          orderId: order.id,
-          amount: order.totalEmployeeEarning,
-          role: "employee",
-        });
-
-        await Notification.create({
-          userId: referralEmployee.id,
-          title: "Earnings Added",
-          message: `₹${order.totalEmployeeEarning} credited from order ${order.orderId}`,
-          type: "earning",
-          roleToDisplay: "employee",
-        });
+        // Reduce stock
+        product.stock = product.stock - item.quantity;
+        await product.save();
       }
     }
 
+    order.status = status;
     await order.save();
 
-    // Notify customer
     await Notification.create({
       userId: order.userId,
       title: "Order Status Updated",
@@ -739,102 +691,77 @@ export const employeeUpdateOrderStatus = async (req, res) => {
 export const employeeUpdateDeliveryStatus = async (req, res) => {
   try {
     const { status } = req.body;
-
     const allowedStatuses = ["Out for Delivery", "Delivered"];
 
     if (!allowedStatuses.includes(status)) {
-      return res.status(403).json({
-        message: "Invalid employee delivery status update",
-      });
+      return res.status(403).json({ message: "Invalid delivery status update" });
     }
 
     const order = await Order.findByPk(req.params.id, {
-      include: {
-        model: OrderItem,
-        as: "orderItems",
-      },
+      include: { model: OrderItem, as: "orderItems" },
     });
 
-    if (!order) {
-      return res.status(404).json({
-        message: "Order not found",
-      });
-    }
+    if (!order) return res.status(404).json({ message: "Order not found" });
 
     order.status = status;
 
     if (status === "Delivered") {
-      order.isDelivered = true;
-
-      // Update isPaid for COD orders
       if (order.paymentMethod === "Cash on Delivery" && !order.isPaid) {
         order.isPaid = true;
       }
+      order.isDelivered = true;
 
-      const { orderUser, admin, supervisor, referralEmployee } =
-        await populateOrderReferralIds(order);
+      const { orderUser, admin, supervisor, referralEmployee } = await populateOrderReferralIds(order);
 
+      // Admin Earnings
       if (admin) {
-        admin.earnings += parseFloat(order.totalAdminEarning || 0);
-        await admin.save();
-
-        await EarningsLedger.create({
-          userId: admin.id,
-          orderId: order.id,
-          amount: order.totalAdminEarning,
-          role: "admin",
-        });
-
-        await Notification.create({
-          userId: admin.id,
-          title: "Earnings Added",
-          message: `₹${order.totalAdminEarning} credited from order ${order.orderId}`,
-          type: "earning",
-          roleToDisplay: "admin",
-        });
+        const adminEarning = parseFloat(order.totalAdminEarning || 0);
+        if (adminEarning > 0) {
+          admin.earnings = parseFloat(admin.earnings || 0) + adminEarning;
+          await admin.save();
+          await EarningsLedger.create({ userId: admin.id, orderId: order.id, amount: adminEarning, role: "admin" });
+          await Notification.create({
+            userId: admin.id,
+            title: "Earnings Added",
+            message: `₹${adminEarning} credited from order ${order.orderId}`,
+            type: "earning",
+            roleToDisplay: "admin",
+          });
+        }
       }
 
+      // Supervisor Earnings
       if (supervisor && orderUser?.role !== "admin") {
-        supervisor.earnings += parseFloat(order.totalSupervisorEarning || 0);
-        await supervisor.save();
-
-        await EarningsLedger.create({
-          userId: supervisor.id,
-          orderId: order.id,
-          amount: order.totalSupervisorEarning,
-          role: "supervisor",
-        });
-
-        await Notification.create({
-          userId: supervisor.id,
-          title: "Earnings Added",
-          message: `₹${order.totalSupervisorEarning} credited from order ${order.orderId}`,
-          type: "earning",
-          roleToDisplay: "supervisor",
-        });
+        const supervisorEarning = parseFloat(order.totalSupervisorEarning || 0);
+        if (supervisorEarning > 0) {
+          supervisor.earnings = parseFloat(supervisor.earnings || 0) + supervisorEarning;
+          await supervisor.save();
+          await EarningsLedger.create({ userId: supervisor.id, orderId: order.id, amount: supervisorEarning, role: "supervisor" });
+          await Notification.create({
+            userId: supervisor.id,
+            title: "Earnings Added",
+            message: `₹${supervisorEarning} credited from order ${order.orderId}`,
+            type: "earning",
+            roleToDisplay: "supervisor",
+          });
+        }
       }
 
-      if (
-        referralEmployee &&
-        ["customer", "employee"].includes(orderUser?.role)
-      ) {
-        referralEmployee.earnings += parseFloat(order.totalEmployeeEarning || 0);
-        await referralEmployee.save();
-
-        await EarningsLedger.create({
-          userId: referralEmployee.id,
-          orderId: order.id,
-          amount: order.totalEmployeeEarning,
-          role: "employee",
-        });
-
-        await Notification.create({
-          userId: referralEmployee.id,
-          title: "Earnings Added",
-          message: `₹${order.totalEmployeeEarning} credited from order ${order.orderId}`,
-          type: "earning",
-          roleToDisplay: "employee",
-        });
+      // Employee Earnings
+      if (referralEmployee && ["customer", "employee"].includes(orderUser?.role)) {
+        const employeeEarning = parseFloat(order.totalEmployeeEarning || 0);
+        if (employeeEarning > 0) {
+          referralEmployee.earnings = parseFloat(referralEmployee.earnings || 0) + employeeEarning;
+          await referralEmployee.save();
+          await EarningsLedger.create({ userId: referralEmployee.id, orderId: order.id, amount: employeeEarning, role: "employee" });
+          await Notification.create({
+            userId: referralEmployee.id,
+            title: "Earnings Added",
+            message: `₹${employeeEarning} credited from order ${order.orderId}`,
+            type: "earning",
+            roleToDisplay: "employee",
+          });
+        }
       }
     }
 
@@ -842,21 +769,16 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
 
     await Notification.create({
       userId: order.userId,
-      title: "Order Status Updated",
-      message: `Order ${order.orderId} status updated to ${status}`,
+      title: "Order Delivered",
+      message: `Your order ${order.orderId} has been successfully delivered!`,
       type: "order",
       roleToDisplay: "customer",
     });
 
-    return res.json({
-      message: "Delivery status updated successfully",
-    });
-
+    return res.json({ message: "Order delivered successfully" });
   } catch (error) {
-    return res.status(500).json({
-      message: "Failed to update delivery status",
-      error: error.message,
-    });
+    console.error("Update Delivery Status Error:", error);
+    return res.status(500).json({ message: "Failed to update delivery status", error: error.message });
   }
 };
 
