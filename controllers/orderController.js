@@ -301,8 +301,8 @@ export const employeeUpdateOrderStatus = async (req, res) => {
       });
     }
 
-    // Deduct stock only when order is accepted
-    if (status === "Accepted") {
+    // Deduct stock only when order is newly accepted
+    if (status === "Accepted" && order.status !== "Accepted") {
       for (const item of order.orderItems) {
         const product = await Product.findByPk(item.productId);
 
@@ -313,14 +313,14 @@ export const employeeUpdateOrderStatus = async (req, res) => {
         }
 
         // Check stock availability
-        if (product.stock < item.quantity) {
+        if (product.stock < item.qty) {
           return res.status(400).json({
             message: `${product.productname} has insufficient stock`,
           });
         }
 
         // Reduce stock
-        product.stock = product.stock - item.quantity;
+        product.stock = product.stock - item.qty;
         await product.save();
       }
     }
@@ -333,7 +333,7 @@ export const employeeUpdateOrderStatus = async (req, res) => {
       title: "Order Status Updated",
       message: `Order ${order.orderId} status updated to ${status}`,
       type: "order",
-      roleToDisplay: "customer",
+      roleToDisplay: ["customer"],
     });
 
     return res.json({
@@ -385,7 +385,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
             title: "Earnings Added",
             message: `₹${adminEarning} credited from order ${order.orderId}`,
             type: "earning",
-            roleToDisplay: "admin",
+            roleToDisplay: ["admin"],
           });
         }
       }
@@ -402,7 +402,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
             title: "Earnings Added",
             message: `₹${supervisorEarning} credited from order ${order.orderId}`,
             type: "earning",
-            roleToDisplay: "supervisor",
+            roleToDisplay: ["supervisor"],
           });
         }
       }
@@ -419,7 +419,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
             title: "Earnings Added",
             message: `₹${employeeEarning} credited from order ${order.orderId}`,
             type: "earning",
-            roleToDisplay: "employee",
+            roleToDisplay: ["employee"],
           });
         }
       }
@@ -432,7 +432,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
       title: "Order Delivered",
       message: `Your order ${order.orderId} has been successfully delivered!`,
       type: "order",
-      roleToDisplay: "customer",
+      roleToDisplay: ["customer"],
     });
 
     return res.json({ message: "Order delivered successfully" });
@@ -705,7 +705,7 @@ export const requestCancelOrder = async (req, res) => {
         title: "Cancel Request",
         message: `Order ${order.orderId} has cancel request.`,
         type: "order",
-        roleToDisplay: "employee",
+        roleToDisplay: ["employee"],
       });
     }
 
@@ -724,7 +724,7 @@ export const requestCancelOrder = async (req, res) => {
         title: "Cancel Request",
         message: `Order ${order.orderId} requested cancellation.`,
         type: "order",
-        roleToDisplay: user.role,
+        roleToDisplay: [user.role],
       });
     }
 
@@ -768,7 +768,7 @@ export const requestReturnOrder = async (req, res) => {
         title: "Return Request",
         message: `Order ${order.orderId} requested return.`,
         type: "order",
-        roleToDisplay: user.role,
+        roleToDisplay: [user.role],
       });
     }
 
@@ -861,7 +861,7 @@ export const adminUpdateOrderStatus = async (req, res) => {
       title: "Order Status Updated",
       message: `Order ${order.orderId} status updated to ${status}`,
       type: "order",
-      roleToDisplay: "customer",
+      roleToDisplay: ["customer"],
     });
 
     return res.json({

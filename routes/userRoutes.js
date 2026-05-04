@@ -16,7 +16,8 @@ import {
   getUsersByReferralHierarchy,
   searchUsersByHierarchy,
   requestWithdraw,
-  getMyEarningsHistory
+  getMyEarningsHistory,
+  getUserById
 } from "../controllers/userController.js";
 import { updateUserStatus, getAllWithdrawRequests, getDashboardRoleCounts, updateWithdrawStatus, getUserEarningsHistory } from "../controllers/adminController.js";
 import { sendNotification, getMyNotifications, markNotificationRead } from "../controllers/notificationController.js";
@@ -55,7 +56,8 @@ router.delete("/address/:id", protect, deleteAddress);
 router.get("/users/by-role/:role", protect, getUsersByRoleHierarchy);
 router.get("/users/downline/:referalcode", protect, getUsersByReferralHierarchy);
 router.get("/users/search/:searchString", protect, websiteStaff, searchUsersByHierarchy);
-router.put("/users/status/:id", protect, websiteStaff, updateUserStatus);
+router.get("/users/:id", protect, websiteStaff, getUserById);
+router.put("/users/status/:id", protect, updateUserStatus);
 
 // EARNINGS
 router.get("/earnings/history", protect, getMyEarningsHistory);

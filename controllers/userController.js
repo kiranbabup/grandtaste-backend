@@ -1295,3 +1295,55 @@ export const getMyEarningsHistory = async (req, res) => {
   }
 };
 
+// GET USER BY ID
+export const getUserById = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id, {
+      attributes: { exclude: ["password"] },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    // Get referrer name
+    let referredByName = "";
+    if (user.parentId) {
+      const parentUser = await User.findByPk(user.parentId);
+      referredByName = parentUser ? parentUser.name : "";
+    }
+
+    // Get addresses
+    const addresses = await Address.findAll({
+      where: { userId: user.id },
+      order: [["isDefault", "DESC"]],
+    });
+
+    return res.json({
+      id: user.id,
+      name: user.name || "",
+      email: user.email || "",
+      phone: user.phone || "",
+      role: user.role || "",
+      pincode: user.pincode || "",
+      referedby: referredByName || "",
+      referalcode: user.referalcode || "",
+      earnings: user.earnings || 0.00,
+      directReferrals: user.directReferrals || 0,
+      addresses,
+      status: user.status,
+      createdAt: user.createdAt,
+    });
+
+  } catch (error) {
+    console.error("Get User By ID Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch user",
+      error: error.message,
+    });
+  }
+};
+

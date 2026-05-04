@@ -145,6 +145,15 @@ export const updateProduct = async (req, res) => {
     product.unit =
       req.body.unit || product.unit;
 
+    product.adminEarningValue =
+      req.body.adminEarningValue ?? product.adminEarningValue;
+
+    product.supervisorEarningValue =
+      req.body.supervisorEarningValue ?? product.supervisorEarningValue;
+
+    product.employeeEarningValue =
+      req.body.employeeEarningValue ?? product.employeeEarningValue;
+
     await product.save();
 
     return res.json({

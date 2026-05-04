@@ -52,11 +52,28 @@ const Order = sequelize.define(
       defaultValue: 0,
       comment: "Total GST amount for entire order",
     },
-    assignedEmployeeId: { type: DataTypes.INTEGER, allowNull: true, comment: "Employee assigned based on pincode", },
-    adminId: { type: DataTypes.INTEGER, allowNull: true, },
-    supervisorId: { type: DataTypes.INTEGER, allowNull: true, },
-    employeeId: { type: DataTypes.INTEGER, allowNull: true, },
-    deliveryPincode: { type: DataTypes.STRING, allowNull: false, },
+    assignedEmployeeId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: "Employee assigned based on pincode",
+    },
+    adminId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+
+    },
+    supervisorId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    employeeId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    deliveryPincode: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     isPaid: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
