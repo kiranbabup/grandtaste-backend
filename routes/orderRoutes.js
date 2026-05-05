@@ -6,6 +6,7 @@ import {
   websiteStaff,
   employeeOnly,
   customerOnly,
+  superAdminOnly,
 } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -26,11 +27,11 @@ router.get("/employeeOrders", protect, employeeOnly, getOrdersByEmployeePincode)
 router.put("/employeeUpdateStatus/:id", protect, employeeOnly, employeeUpdateOrderStatus);
 router.put("/employeeUpdateDeliveryStatus/:id", protect, employeeOnly, employeeUpdateDeliveryStatus);
 
-// SUPERVISOR ROUTES
+// SUPERVISOR / ADMIN / SUPERADMIN ROUTES
 router.put("/supervisorUpdateStatus/:id", protect, websiteStaff, supervisorUpdateOrderStatus);
 
-// ADMIN / SUPERADMIN ROUTES
-router.put("/adminUpdateStatus/:id", protect, websiteStaff, adminUpdateOrderStatus);
+// SUPERADMIN ROUTES
+router.put("/adminUpdateStatus/:id", protect, superAdminOnly, adminUpdateOrderStatus);
 
 // WEBSITE STAFF VIEW ROUTES
 router.get("/getAllOrders", protect, websiteStaff, getAllOrders);
