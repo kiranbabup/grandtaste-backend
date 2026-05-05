@@ -35,7 +35,7 @@ const Product = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       defaultValue: "veg",
-      comment: "veg / nonveg / beverages / snacks / etc",
+      comment: "veg / non-veg / etc ",
     },
 
     productprice: {

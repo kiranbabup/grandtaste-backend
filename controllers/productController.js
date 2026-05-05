@@ -175,44 +175,52 @@ export const updateProduct = async (req, res) => {
 export const uploadProductImage = async (req, res) => {
   try {
     const { id } = req.params;
-    const { imageUrl } = req.body;
+    const { imageUrls } = req.body;
 
     const product = await Product.findByPk(id);
 
     if (!product) {
       return res.status(404).json({
-        message: "Product not found",
+        message: `Product with ID ${id} not found`,
       });
     }
 
-    if (!imageUrl) {
+    let newImages = [];
+    if (imageUrls && Array.isArray(imageUrls)) {
+      newImages = imageUrls;
+    }
+
+    if (newImages.length === 0) {
       return res.status(400).json({
-        message: "Image URL is required",
+        message: "No image URLs provided",
       });
     }
 
-    const existingImages = product.images || [];
+    const currentImages = product.images || [];
 
-    if (existingImages.length >= 5) {
+    if (currentImages.length + newImages.length > 5) {
       return res.status(400).json({
-        message: "Maximum 5 images allowed",
+        message: `Maximum 5 images allowed. Currently have ${currentImages.length}, trying to add ${newImages.length}.`,
       });
     }
 
-    existingImages.push(imageUrl);
+    // Merge and save (use new array reference for Sequelize)
+    product.images = [...currentImages, ...newImages];
 
-    product.images = existingImages;
+    // Explicitly tell Sequelize the field has changed (crucial for JSON types)
+    product.changed("images", true);
 
     await product.save();
 
     return res.json({
-      message: "Image uploaded successfully",
+      message: "Images uploaded successfully",
       images: product.images,
     });
 
   } catch (error) {
+    console.error("Upload Product Image Error:", error);
     return res.status(500).json({
-      message: "Failed to upload image",
+      message: "Failed to upload images due to server error",
       error: error.message,
     });
   }
@@ -235,6 +243,8 @@ export const deleteProductImage = async (req, res) => {
     product.images = (product.images || []).filter(
       (img) => img !== imageUrl
     );
+
+    product.changed("images", true);
 
     await product.save();
 
@@ -349,6 +359,9 @@ export const getProductDetailsById = async (req, res) => {
         "unit",
         "rating",
         "totalReviews",
+        "adminEarningValue",
+        "supervisorEarningValue",
+        "employeeEarningValue",
       ],
     });
 

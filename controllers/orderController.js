@@ -477,11 +477,20 @@ export const getMyOrders = async (req, res) => {
 // GET ORDER BY ID
 export const getOrderById = async (req, res) => {
   try {
-    const order = await Order.findByPk(req.params.id, {
+    const { id } = req.params;
+
+    const order = await Order.findByPk(id, {
       include: [
         {
           model: OrderItem,
           as: "orderItems",
+          include: [
+            {
+              model: Product,
+              as: "product",
+              attributes: ["id", "productname", "images", "category", "unit", ],
+            },
+          ],
         },
         {
           model: User,
@@ -496,33 +505,32 @@ export const getOrderById = async (req, res) => {
       });
     }
 
+    // Role-based Access Control
+    const userRole = req.user.role;
+
     // CUSTOMER can only view own orders
-    if (
-      req.user.role === "customer" &&
-      order.userId !== req.user.id
-    ) {
+    if (userRole === "customer" && order.userId !== req.user.id) {
       return res.status(403).json({
-        message: "Access denied",
+        message: "Access denied. You can only view your own orders.",
       });
     }
 
-    // EMPLOYEE can only view assigned pincode orders
-    if (
-      req.user.role === "employee" &&
-      order.shippingAddress?.pincode !== req.user.pincode
-    ) {
+    // EMPLOYEE can only view orders in their assigned pincode
+    if (userRole === "employee" && order.deliveryPincode !== req.user.pincode) {
       return res.status(403).json({
-        message: "Access denied",
+        message: "Access denied. This order is not in your assigned pincode.",
       });
     }
+
+    // Website Staff (Admin, Superadmin, Supervisor) can view all orders
+    // This is handled by falling through the above checks.
 
     return res.status(200).json(order);
 
   } catch (error) {
     console.error("Get Order By ID Error:", error);
-
     return res.status(500).json({
-      message: "Failed to fetch order",
+      message: "Failed to fetch order details",
       error: error.message,
     });
   }
