@@ -3,7 +3,7 @@ import EarningsLedger from "../models/EarningsLedgerModel.js";
 import User from "../models/User.js";
 import Withdraw from "../models/WithdrawModel.js";
 import Payments from "../models/payments_model.js";
-import Order from "../models/Order.js";
+import { Order } from "../models/Order.js";
 import Product from "../models/Product.js";
 import { Op, fn, col, literal } from "sequelize";
 
