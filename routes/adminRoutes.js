@@ -1,10 +1,10 @@
 import express from "express";
-import { 
-  getDashboardRoleCounts, 
-  getIncomeTrends, 
-  getOrderStatusCounts, 
-  getSalesReport, 
-  getStockProductCounts 
+import {
+    getDashboardRoleCounts,
+    getIncomeTrends,
+    getOrderStatusCounts,
+    getSalesReport,
+    getStockProductCounts
 } from "../controllers/adminController.js";
 import { protect, superAdminOnly, websiteStaff } from "../middleware/authMiddleware.js";
 

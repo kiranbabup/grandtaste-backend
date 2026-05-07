@@ -478,7 +478,7 @@ export const getSalesReport = async (req, res) => {
     const groupFn = formatDateGroup(type);
 
     const data = await Order.findAll({
-      attributes: [[groupFn, "period"], [fn("SUM", col("totalAmount")), "totalSales"]],
+      attributes: [[groupFn, "period"], [fn("SUM", col("totalPrice")), "totalSales"]],
       where: { status: { [Op.in]: ["Delivered", "Paid"] } },
       group: ["period"],
       order: [[literal("period"), "ASC"]],
@@ -496,7 +496,7 @@ export const getIncomeTrends = async (req, res) => {
   try {
     // Get daily sales first
     const dailyData = await Order.findAll({
-      attributes: [[fn("DATE", col("createdAt")), "date"], [fn("SUM", col("totalAmount")), "dailyIncome"]],
+      attributes: [[fn("DATE", col("createdAt")), "date"], [fn("SUM", col("totalPrice")), "dailyIncome"]],
       where: { status: { [Op.in]: ["Delivered", "Paid"] } },
       group: ["date"],
       order: [["date", "ASC"]],
