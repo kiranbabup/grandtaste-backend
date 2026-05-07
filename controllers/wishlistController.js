@@ -219,6 +219,7 @@ export const getWishlistDetails = async (req, res) => {
       userName: item.Wishlist?.User?.name || "N/A",
       userPhone: item.Wishlist?.User?.phone || "N/A",
       productName: item.product?.productname || "N/A",
+      productId: item.product?.id || "N/A",
       sellingPrice: item.product?.sellingPrice || 0,
       createdAt: item.createdAt,
     }));
