@@ -19,14 +19,13 @@ import {
   getMyEarningsHistory,
   getUserById
 } from "../controllers/userController.js";
-import { updateUserStatus, getAllWithdrawRequests, getDashboardRoleCounts, updateWithdrawStatus, getUserEarningsHistory, getPayments, getSalesReport, getIncomeTrends, getOrderStatusCounts, getStockProductCounts } from "../controllers/adminController.js";
+import { updateUserStatus, getAllWithdrawRequests, updateWithdrawStatus, getUserEarningsHistory, getPayments } from "../controllers/adminController.js";
 import { sendNotification, getMyNotifications, markNotificationRead } from "../controllers/notificationController.js";
 import {
   protect,
   websiteStaff,
   superAdminOnly,
   appStaffOnly,
-  customerOnly
 } from "../middleware/authMiddleware.js";
 import { deleteBankDetail, getUserBankDetails, storeBankDetails, updateBankDetails } from "../controllers/bankController.js";
 
@@ -81,12 +80,5 @@ router.get("/notifications", protect, getMyNotifications);
 router.put("/notifications/read/:id", protect, markNotificationRead);
 
 router.get("/getpayments", protect, superAdminOnly, getPayments);
-
-// DASHBOARD
-router.get("/dashboard/role-counts", protect, websiteStaff, getDashboardRoleCounts);
-router.get("/dashboard/sales", protect, superAdminOnly, getSalesReport);
-router.get("/dashboard/income-trends", protect, superAdminOnly, getIncomeTrends);
-router.get("/dashboard/order-counts", protect, websiteStaff, getOrderStatusCounts);
-router.get("/dashboard/stock-products", protect, websiteStaff, getStockProductCounts);
 
 export default router;

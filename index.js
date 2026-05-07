@@ -10,7 +10,7 @@ import cartRoutes from "./routes/cartRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
 import billBoardRoutes from "./routes/billBoardRoutes.js";
 // import uploadRoutes from "./routes/uploadRoutes.js";
-// import adminRoutes from "./routes/adminRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -63,7 +63,7 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/billboards", billBoardRoutes);
 // app.use("/api/upload", uploadRoutes);
-// app.use("/api/admin", adminRoutes);
+app.use("/api/admin", adminRoutes);
 // ==================== END ROUTES ====================
 
 app.get("/", (req, res) => {
