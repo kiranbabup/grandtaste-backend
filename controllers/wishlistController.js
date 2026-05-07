@@ -198,7 +198,7 @@ export const getWishlistDetails = async (req, res) => {
           model: Product,
           as: "product",
           where: { stock: 0 },
-          attributes: ["productname", "sellingPrice"],
+          attributes: ["productname", "sellingPrice", "id"],
         },
         {
           model: Wishlist,
