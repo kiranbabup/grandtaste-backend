@@ -37,4 +37,6 @@ router.put("/adminUpdateStatus/:id", protect, superAdminOnly, adminUpdateOrderSt
 router.get("/getAllOrders", protect, websiteStaff, getAllOrders);
 router.get("/searchByPhone/:phone", protect, websiteStaff, getOrdersBySearchPhone);
 
+// router.get("/getAllPayments", protect, superAdminOnly, getAllPayments);
+
 export default router;

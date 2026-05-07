@@ -3,6 +3,9 @@ import EarningsLedger from "../models/EarningsLedgerModel.js";
 import User from "../models/User.js";
 import Withdraw from "../models/WithdrawModel.js";
 import Payments from "../models/payments_model.js";
+import Order from "../models/Order.js";
+import Product from "../models/Product.js";
+import { Op, fn, col, literal } from "sequelize";
 
 // ROLE ACCESS CONTROL
 const canManageRole = (loggedInRole, targetRole) => {
@@ -441,5 +444,112 @@ export const getPayments = async (req, res) => {
       message: "Failed to fetch payments",
       error: error.message,
     });
+  }
+};
+
+// Helper to format date groups
+const formatDateGroup = (type) => {
+  switch (type) {
+    case "daily":
+      return fn("DATE", col("createdAt"));
+    case "weekly":
+      return fn("DATE_FORMAT", col("createdAt"), "%Y-%u"); // MySQL week format
+    case "monthly":
+      return fn("DATE_FORMAT", col("createdAt"), "%Y-%m");
+    case "yearly":
+      return fn("DATE_FORMAT", col("createdAt"), "%Y");
+    default:
+      return fn("DATE", col("createdAt"));
+  }
+};
+
+// GET /dashboard/sales?type=daily|weekly|monthly|yearly
+export const getSalesReport = async (req, res) => {
+  try {
+    const type = req.query.type || "daily";
+    const groupFn = formatDateGroup(type);
+
+    const data = await Order.findAll({
+      attributes: [[groupFn, "period"], [fn("SUM", col("totalAmount")), "totalSales"]],
+      where: { status: { [Op.in]: ["Delivered", "Paid"] } },
+      group: ["period"],
+      order: [[literal("period"), "ASC"]],
+    });
+
+    return res.json({ success: true, type, data });
+  } catch (error) {
+    console.error("Sales Report Error:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch sales report", error: error.message });
+  }
+};
+
+// GET /dashboard/income-trends (daily -> monthly cumulative)
+export const getIncomeTrends = async (req, res) => {
+  try {
+    // Get daily sales first
+    const dailyData = await Order.findAll({
+      attributes: [[fn("DATE", col("createdAt")), "date"], [fn("SUM", col("totalAmount")), "dailyIncome"]],
+      where: { status: { [Op.in]: ["Delivered", "Paid"] } },
+      group: ["date"],
+      order: [["date", "ASC"]],
+    });
+
+    // Build cumulative monthly totals
+    const monthlyMap = {};
+    dailyData.forEach((row) => {
+      const date = row.getDataValue("date");
+      const amount = parseFloat(row.getDataValue("dailyIncome")) || 0;
+      const month = date.slice(0, 7); // YYYY-MM
+      monthlyMap[month] = (monthlyMap[month] || 0) + amount;
+    });
+
+    const monthlyTrend = Object.entries(monthlyMap).map(([month, total]) => ({ month, totalIncome: total }));
+
+    return res.json({ success: true, daily: dailyData, monthly: monthlyTrend });
+  } catch (error) {
+    console.error("Income Trends Error:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch income trends", error: error.message });
+  }
+};
+
+// GET /dashboard/order-counts (role based)
+export const getOrderStatusCounts = async (req, res) => {
+  try {
+    const loggedInUser = req.user;
+    // Build base where clause for orders belonging to user's downline if not superadmin
+    let whereClause = {};
+    if (loggedInUser.role !== "superadmin") {
+      // Find users in downline based on referral hierarchy
+      const downline = await User.findAll({
+        where: { referedby: loggedInUser.referalcode },
+        attributes: ["id"],
+      });
+      const downIds = downline.map((u) => u.id);
+      whereClause = { userId: { [Op.in]: downIds } };
+    }
+
+    const statuses = ["Pending", "Accepted", "Shipped", "Delivered", "Rejected"];
+    const counts = {};
+    for (const status of statuses) {
+      const cnt = await Order.count({ where: { ...whereClause, status } });
+      counts[status] = cnt;
+    }
+    return res.json({ success: true, role: loggedInUser.role, counts });
+  } catch (error) {
+    console.error("Order Status Counts Error:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch order status counts", error: error.message });
+  }
+};
+
+// GET /dashboard/stock-products (total stock and product count)
+export const getStockProductCounts = async (req, res) => {
+  try {
+    const totalProducts = await Product.count();
+    const stockResult = await Product.findAll({ attributes: [[fn("SUM", col("stock")), "totalStock"]] });
+    const totalStock = stockResult[0].getDataValue("totalStock") || 0;
+    return res.json({ success: true, totalProducts, totalStock });
+  } catch (error) {
+    console.error("Stock/Product Counts Error:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch stock/product counts", error: error.message });
   }
 };

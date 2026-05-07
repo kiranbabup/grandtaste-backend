@@ -19,7 +19,7 @@ import {
   getMyEarningsHistory,
   getUserById
 } from "../controllers/userController.js";
-import { updateUserStatus, getAllWithdrawRequests, getDashboardRoleCounts, updateWithdrawStatus, getUserEarningsHistory } from "../controllers/adminController.js";
+import { updateUserStatus, getAllWithdrawRequests, getDashboardRoleCounts, updateWithdrawStatus, getUserEarningsHistory, getPayments, getSalesReport, getIncomeTrends, getOrderStatusCounts, getStockProductCounts } from "../controllers/adminController.js";
 import { sendNotification, getMyNotifications, markNotificationRead } from "../controllers/notificationController.js";
 import {
   protect,
@@ -80,11 +80,13 @@ router.post("/notifications/send", protect, sendNotification);
 router.get("/notifications", protect, getMyNotifications);
 router.put("/notifications/read/:id", protect, markNotificationRead);
 
+router.get("/getpayments", protect, superAdminOnly, getPayments);
+
 // DASHBOARD
 router.get("/dashboard/role-counts", protect, websiteStaff, getDashboardRoleCounts);
+router.get("/dashboard/sales", protect, superAdminOnly, getSalesReport);
+router.get("/dashboard/income-trends", protect, superAdminOnly, getIncomeTrends);
+router.get("/dashboard/order-counts", protect, websiteStaff, getOrderStatusCounts);
+router.get("/dashboard/stock-products", protect, websiteStaff, getStockProductCounts);
 
 export default router;
-
-// router.get("/dashboard", protect, websiteStaff, dashboardController); // its not defined
-// router.post("/create-admin", protect, admin, createAdmin); // why?
-// router.get("/employees", protect, supervisorAccess, getEmployees); // why?

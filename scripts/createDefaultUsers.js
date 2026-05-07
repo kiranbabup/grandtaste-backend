@@ -36,10 +36,10 @@ const createDefaultUsers = async () => {
     if (!admin) {
       admin = await User.create({
         name: "grandTadmin",
-        role: "admin",
         referalcode: "admin1",
         referedby: "superadmin",
         parentId: superadmin.id,
+        role: "admin",
         phone: "9876543201",
         password: "123456",
       });
@@ -60,10 +60,10 @@ const createDefaultUsers = async () => {
     if (!supervisor) {
       supervisor = await User.create({
         name: "grandTsupervisor",
-        role: "supervisor",
         referalcode: "visor1",
         referedby: "admin1",
         parentId: admin.id,
+        role: "supervisor",
         phone: "9111111111",
         password: "123456",
       });
@@ -84,10 +84,10 @@ const createDefaultUsers = async () => {
     if (!employee) {
       employee = await User.create({
         name: "grandTemployee",
-        role: "employee",
         referalcode: "employ1",
         referedby: "visor1",
         parentId: supervisor.id,
+        role: "employee",
         phone: "8111111111",
         password: "123456",
         pincode: "530000",
@@ -109,10 +109,10 @@ const createDefaultUsers = async () => {
     if (!customer) {
       customer = await User.create({
         name: "grandTcustomer",
-        role: "customer",
         referalcode: null,
         referedby: "employ1",
         parentId: employee.id,
+        role: "customer",
         phone: "7111111111",
         password: "123456",
         pincode: "530000",
