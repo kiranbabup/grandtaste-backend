@@ -421,7 +421,15 @@ export const getPayments = async (req, res) => {
             "phone",
             "role",
             "status",
-            "referalcode",
+          ],
+        },
+        {
+          model: Order,
+          as: "order",
+          attributes: [
+            "id",
+            "orderId",
+            "status",
           ],
         },
       ],
