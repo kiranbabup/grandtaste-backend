@@ -141,15 +141,16 @@ export const addToCart = async (req, res) => {
     }
 
     let grandTotal = 0;
+    let totalQty = 0;
     updatedCart.items.forEach((item) => {
-      const price = parseFloat(item.productprice) || 0;
-      const discount = parseFloat(item.discountvalue) || 0;
-      grandTotal += (price - discount) * item.qty;
+      grandTotal += parseFloat(item.sellingPrice) * item.qty;
+      totalQty += item.qty;
     });
 
     return res.json({
       ...updatedCart.toJSON(),
       grandTotal,
+      totalQty,
       totalItems: updatedCart.items.length,
     });
 
@@ -182,16 +183,17 @@ export const getCart = async (req, res) => {
     }
 
     let grandTotal = 0;
+    let totalQty = 0;
 
     cart.items.forEach((item) => {
-      const price = parseFloat(item.productprice) || 0;
-      const discount = parseFloat(item.discountvalue) || 0;
       grandTotal += parseFloat(item.sellingPrice) * item.qty;
+      totalQty += item.qty;
     });
 
     return res.json({
       ...cart.toJSON(),
       grandTotal,
+      totalQty,
       totalItems: cart.items.length,
     });
 
@@ -231,15 +233,16 @@ export const removeFromCart = async (req, res) => {
     }
 
     let grandTotal = 0;
+    let totalQty = 0;
     updatedCart.items.forEach((item) => {
-      const price = parseFloat(item.productprice) || 0;
-      const discount = parseFloat(item.discountvalue) || 0;
-      grandTotal += (price - discount) * item.qty;
+      grandTotal += parseFloat(item.sellingPrice) * item.qty;
+      totalQty += item.qty;
     });
 
     res.json({
       ...updatedCart.toJSON(),
       grandTotal,
+      totalQty,
       totalItems: updatedCart.items.length,
     });
   } else {

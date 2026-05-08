@@ -38,6 +38,10 @@ const Order = sequelize.define(
     totalPrice: {
       type: DataTypes.DECIMAL(10, 2),
     },
+    totalQty: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
     totalAdminEarning: {
       type: DataTypes.DECIMAL(10, 2),
     },
@@ -224,6 +228,7 @@ Order.beforeSave(async (order) => {
   });
 
   let totalPrice = 0;
+  let totalQty = 0;
   let totalAdminEarning = 0;
   let totalSupervisorEarning = 0;
   let totalEmployeeEarning = 0;
@@ -231,6 +236,7 @@ Order.beforeSave(async (order) => {
 
   orderItems.forEach((item) => {
     totalPrice += parseFloat(item.sellingPrice || 0) * parseInt(item.qty || 0);
+    totalQty += parseInt(item.qty || 0);
 
     totalAdminEarning +=
       parseFloat(item.adminEarningValue || 0) * parseInt(item.qty || 0);
@@ -246,6 +252,7 @@ Order.beforeSave(async (order) => {
   });
 
   order.totalPrice = totalPrice;
+  order.totalQty = totalQty;
   order.totalAdminEarning = totalAdminEarning;
   order.totalSupervisorEarning = totalSupervisorEarning;
   order.totalEmployeeEarning = totalEmployeeEarning;
