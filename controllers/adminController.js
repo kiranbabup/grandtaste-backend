@@ -5,7 +5,7 @@ import Withdraw from "../models/WithdrawModel.js";
 import Payments from "../models/payments_model.js";
 import { Order } from "../models/Order.js";
 import Product from "../models/Product.js";
-import { Op, fn, col, literal } from "sequelize";
+import { Op, fn, col, literal, where } from "sequelize";
 
 // ROLE ACCESS CONTROL
 const canManageRole = (loggedInRole, targetRole) => {
@@ -559,5 +559,77 @@ export const getStockProductCounts = async (req, res) => {
   } catch (error) {
     console.error("Stock/Product Counts Error:", error);
     return res.status(500).json({ success: false, message: "Failed to fetch stock/product counts", error: error.message });
+  }
+};
+
+// GET /dashboard/superadmin-income-stats
+export const getSuperAdminIncomeStats = async (req, res) => {
+  try {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    // 1. Today's Income
+    const todayIncome = await Order.sum('totalPrice', {
+      where: {
+        createdAt: {
+          [Op.gte]: todayStr + ' 00:00:00',
+          [Op.lte]: todayStr + ' 23:59:59',
+        },
+        status: { [Op.in]: ["Delivered", "Paid"] }
+      }
+    });
+
+    // 2. Monthly Income (This Month and Last Month)
+    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString().split('T')[0];
+    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().split('T')[0];
+
+    const thisMonthIncome = await Order.sum('totalPrice', {
+      where: {
+        createdAt: { [Op.gte]: thisMonthStart + ' 00:00:00' },
+        status: { [Op.in]: ["Delivered", "Paid"] }
+      }
+    });
+
+    const lastMonthIncome = await Order.sum('totalPrice', {
+      where: {
+        createdAt: { 
+          [Op.gte]: lastMonthStart + ' 00:00:00', 
+          [Op.lte]: lastMonthEnd + ' 23:59:59' 
+        },
+        status: { [Op.in]: ["Delivered", "Paid"] }
+      }
+    });
+
+    // 3. Yearly Income (Today to last year today)
+    const lastYearToday = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()).toISOString().split('T')[0];
+    const yearlyIncome = await Order.sum('totalPrice', {
+      where: {
+        createdAt: { [Op.gte]: lastYearToday + ' 00:00:00' },
+        status: { [Op.in]: ["Delivered", "Paid"] }
+      }
+    });
+
+    // 4. Total Income (Since 01/01/2026 to today)
+    const since2026Income = await Order.sum('totalPrice', {
+      where: {
+        createdAt: { [Op.gte]: '2026-01-01 00:00:00' },
+        status: { [Op.in]: ["Delivered", "Paid"] }
+      }
+    });
+
+    return res.json({
+      success: true,
+      stats: {
+        todayIncome: parseFloat(todayIncome || 0),
+        thisMonthIncome: parseFloat(thisMonthIncome || 0),
+        lastMonthIncome: parseFloat(lastMonthIncome || 0),
+        yearlyIncome: parseFloat(yearlyIncome || 0),
+        totalIncomeSince2026: parseFloat(since2026Income || 0)
+      }
+    });
+  } catch (error) {
+    console.error("SuperAdmin Income Stats Error:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch income stats", error: error.message });
   }
 };
