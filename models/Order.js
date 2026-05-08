@@ -257,5 +257,6 @@ Order.hasMany(OrderItem, { foreignKey: "orderId", as: "orderItems", onDelete: "C
 OrderItem.belongsTo(Order, { foreignKey: "orderId" });
 OrderItem.belongsTo(Product, { foreignKey: "productId", as: "product" });
 Order.belongsTo(User, { foreignKey: "userId" });
+Order.belongsTo(User, { foreignKey: "assignedEmployeeId", as: "assignedEmployee" });
 
 export { Order, OrderItem };

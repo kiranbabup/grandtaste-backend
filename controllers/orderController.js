@@ -501,7 +501,12 @@ export const getOrderById = async (req, res) => {
         },
         {
           model: User,
-          attributes: ["id", "name", "phone", "role", "pincode"],
+          attributes: ["id", "name", "phone", "role", "pincode", "referalcode"],
+        },
+        {
+          model: User,
+          as: "assignedEmployee",
+          attributes: ["id", "name", "phone", "referalcode"],
         },
       ],
     });
@@ -567,6 +572,11 @@ export const getAllOrders = async (req, res) => {
           model: OrderItem,
           as: "orderItems",
         },
+        {
+          model: User,
+          as: "assignedEmployee",
+          attributes: ["id", "name", "phone", "referalcode"],
+        },
       ],
       order: [["createdAt", "DESC"]],
       limit,
@@ -620,6 +630,11 @@ export const getOrdersBySearchPhone = async (req, res) => {
           model: OrderItem,
           as: "orderItems",
         },
+        {
+          model: User,
+          as: "assignedEmployee",
+          attributes: ["id", "name", "phone", "referalcode"],
+        },
       ],
       limit,
       offset,
@@ -660,6 +675,11 @@ export const getOrdersByEmployeePincode = async (req, res) => {
         {
           model: OrderItem,
           as: "orderItems",
+        },
+        {
+          model: User,
+          as: "assignedEmployee",
+          attributes: ["id", "name", "phone", "referalcode"],
         },
         {
           model: User,
