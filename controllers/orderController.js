@@ -106,6 +106,8 @@ export const createOrder = async (req, res) => {
       });
     }
 
+    const rawPayStatus = paymentDetails?.status || 'Pending';
+    const orderPaymentStatus = rawPayStatus === 'Success' ? 'Successful' : rawPayStatus;
     // CREATE ORDER FIRST
     const order = await Order.create({
       userId: user.id,
@@ -115,9 +117,9 @@ export const createOrder = async (req, res) => {
       paymentMethod: paymentMethod || "Cash on Delivery",
       paymentStatus:
         paymentMethod === "Razorpay"
-          ? paymentDetails?.status || "Pending"
+          ? orderPaymentStatus   // "Successful" — matches Orders ENUM
           : "Pending",
-      isPaid: paymentMethod === "Razorpay" && paymentDetails?.status === "Success",
+      isPaid: paymentMethod === "Razorpay" && rawPayStatus === "Success",
     });
 
     // MOVE CART ITEMS TO ORDER ITEMS
@@ -169,7 +171,7 @@ export const createOrder = async (req, res) => {
         razorpay_signature:
           paymentDetails?.razorpay_signature || null,
         payment_method: "razorpay",
-        credited_amount: order.totalPrice,
+        credited_amount: parseFloat(paymentDetails?.credited_amount || order.totalPrice || 0),
         currency: "INR",
         status: paymentDetails?.status || "Pending",
         failure_reason:
