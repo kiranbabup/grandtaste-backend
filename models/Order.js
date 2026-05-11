@@ -110,6 +110,7 @@ const Order = sequelize.define(
         "Pending",
         "In-Progress",
         "Successful",
+        "Success",
         "Failed",
       ),
       defaultValue: "Pending",
