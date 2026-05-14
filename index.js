@@ -1,6 +1,10 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+
+// Set global timezone to IST
+process.env.TZ = "Asia/Kolkata";
+
 import { connectDB } from "./config/db.js";
 
 import productRoutes from "./routes/productRoutes.js";
