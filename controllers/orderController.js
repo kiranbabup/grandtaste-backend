@@ -237,7 +237,7 @@ export const createOrder = async (req, res) => {
         title: "New Order Placed",
         message: `Order ${order.orderId} has been placed by ${user.name}.`,
         type: "order",
-        relatedId: order.orderId,
+        relatedId: order.id,
         roleToDisplay: [staff.role],
       });
     }
@@ -337,7 +337,7 @@ export const employeeUpdateOrderStatus = async (req, res) => {
       title: "Order Status Updated",
       message: `Order ${order.orderId} status updated to ${status}`,
       type: "order",
-      relatedId: order.orderId,
+      relatedId: order.id,
       roleToDisplay: ["customer"],
     });
 
@@ -390,7 +390,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
             title: "Earnings Added",
             message: `₹${adminEarning} credited from order ${order.orderId}`,
             type: "earning",
-            relatedId: order.orderId,
+            relatedId: order.id,
             roleToDisplay: ["admin"],
           });
         }
@@ -408,7 +408,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
             title: "Earnings Added",
             message: `₹${supervisorEarning} credited from order ${order.orderId}`,
             type: "earning",
-            relatedId: order.orderId,
+            relatedId: order.id,
             roleToDisplay: ["supervisor"],
           });
         }
@@ -426,7 +426,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
             title: "Earnings Added",
             message: `₹${employeeEarning} credited from order ${order.orderId}`,
             type: "earning",
-            relatedId: order.orderId,
+            relatedId: order.id,
             roleToDisplay: ["employee"],
           });
         }
@@ -440,7 +440,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
       title: "Order Delivered",
       message: `Your order ${order.orderId} has been successfully delivered!`,
       type: "order",
-      relatedId: order.orderId,
+      relatedId: order.id,
       roleToDisplay: ["customer"],
     });
 
@@ -742,7 +742,7 @@ export const requestCancelOrder = async (req, res) => {
         title: "Cancel Request",
         message: `Order ${order.orderId} has cancel request.`,
         type: "order",
-        relatedId: order.orderId,
+        relatedId: order.id,
         roleToDisplay: ["employee"],
       });
     }
@@ -762,7 +762,7 @@ export const requestCancelOrder = async (req, res) => {
         title: "Cancel Request",
         message: `Order ${order.orderId} requested cancellation.`,
         type: "order",
-        relatedId: order.orderId,
+        relatedId: order.id,
         roleToDisplay: [user.role],
       });
     }
@@ -807,7 +807,7 @@ export const requestReturnOrder = async (req, res) => {
         title: "Return Request",
         message: `Order ${order.orderId} requested return.`,
         type: "order",
-        relatedId: order.orderId,
+        relatedId: order.id,
         roleToDisplay: [user.role],
       });
     }
@@ -901,7 +901,7 @@ export const adminUpdateOrderStatus = async (req, res) => {
       title: "Order Status Updated",
       message: `Order ${order.orderId} status updated to ${status}`,
       type: "order",
-      relatedId: order.orderId,
+      relatedId: order.id,
       roleToDisplay: ["customer"],
     });
 
