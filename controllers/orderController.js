@@ -216,7 +216,7 @@ export const createOrder = async (req, res) => {
           title: "New Order Received",
           message: `New order ${order.orderId} assigned to your pincode.`,
           type: "order",
-          relatedId: order.orderId,
+          relatedId: order.id,
           roleToDisplay: ["employee"],
         });
       }
