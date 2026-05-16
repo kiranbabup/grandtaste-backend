@@ -4,141 +4,97 @@ import Product from "../models/Product.js";
 // ADD TO CART
 export const addToCart = async (req, res) => {
   try {
-    const { productId, qty } = req.body;
+    const { productId, qty: rawQty } = req.body;
     const userId = req.user.id;
 
-    // Validate input
-    if (!productId || !qty || qty <= 0) {
+    // 1. Ensure qty is a valid number (prevents string concatenation issues)
+    const qty = parseInt(rawQty);
+
+    if (!productId || isNaN(qty) || qty <= 0) {
       return res.status(400).json({
-        message: "Valid productId and qty are required",
+        message: "Valid productId and a positive qty are required",
       });
     }
 
-    // Fetch product
     const product = await Product.findByPk(productId);
-
     if (!product) {
-      return res.status(404).json({
-        message: "Product not found",
-      });
+      return res.status(404).json({ message: "Product not found" });
     }
 
-    if (qty > product.stock) {
-      return res.status(400).json({
-        message: "Requested quantity exceeds stock",
-      });
-    }
-
-    // GST CALCULATIONS (Inclusive GST)
+    // GST CALCULATIONS
     const sellingPrice = parseFloat(product.sellingPrice);
     const gst = parseFloat(product.gstpercentage);
-
     const basePrice = (sellingPrice * 100) / (100 + gst);
     const sellingPriceGst = sellingPrice - basePrice;
-    const totalSellingPriceGst = sellingPriceGst * qty;
 
     // Find or create cart
-    let cart = await Cart.findOne({
-      where: { userId },
-    });
+    let [cart] = await Cart.findOrCreate({ where: { userId } });
 
-    if (!cart) {
-      cart = await Cart.create({
-        userId,
-      });
-    }
-
-    // Check existing cart item
+    // Check existing item
     const existingItem = await CartItem.findOne({
-      where: {
-        cartId: cart.id,
-        productId,
-      },
+      where: { cartId: cart.id, productId },
     });
 
     if (existingItem) {
+      // NOTE: Here we ADD to the quantity. 
+      // If you want to SET the quantity from a cart page, 
+      // you could pass a flag like 'isUpdate: true' in req.body
       const newQty = existingItem.qty + qty;
 
       if (newQty > product.stock) {
-        return res.status(400).json({
-          message: "Total quantity exceeds stock",
-        });
+        return res.status(400).json({ message: "Total quantity exceeds stock" });
       }
 
-      // Recalculate GST
-      const updatedTotalSellingPriceGst = sellingPriceGst * newQty;
-
+      // Update values and snapshots
       existingItem.qty = newQty;
-
-      // Update all snapshots
       existingItem.productname = product.productname;
-      existingItem.category = product.category;
-      existingItem.stock = product.stock;
-      existingItem.unit = product.unit;
-
-      existingItem.productprice = product.productprice;
-      existingItem.discountvalue = product.discountvalue;
       existingItem.sellingPrice = product.sellingPrice;
-
-      existingItem.hsncode = product.hsncode;
-      
-      existingItem.gstpercentage = product.gstpercentage;
       existingItem.sellingPriceGst = sellingPriceGst;
-      existingItem.totalSellingPriceGst = updatedTotalSellingPriceGst;
+      existingItem.totalSellingPriceGst = sellingPriceGst * newQty;
+      existingItem.stock = product.stock; // Update snapshot of stock
 
+      // Update other snapshots as needed...
       existingItem.adminEarningValue = product.adminEarningValue;
       existingItem.supervisorEarningValue = product.supervisorEarningValue;
       existingItem.employeeEarningValue = product.employeeEarningValue;
 
       await existingItem.save();
-
     } else {
-      // Create new cart item
+      if (qty > product.stock) {
+        return res.status(400).json({ message: "Requested quantity exceeds stock" });
+      }
+
+      // Create new cart item with all snapshots
       await CartItem.create({
         cartId: cart.id,
         productId,
         qty,
-
-        // Product snapshots
         productname: product.productname,
         category: product.category,
-        stock: product.stock,
         unit: product.unit,
-
-        // Pricing snapshots
         productprice: product.productprice,
         discountvalue: product.discountvalue,
         sellingPrice: product.sellingPrice,
-
         hsncode: product.hsncode,
-        // GST snapshots
         gstpercentage: product.gstpercentage,
         sellingPriceGst,
-        totalSellingPriceGst,
-
-        // Earnings snapshots
+        totalSellingPriceGst: sellingPriceGst * qty,
         adminEarningValue: product.adminEarningValue,
         supervisorEarningValue: product.supervisorEarningValue,
         employeeEarningValue: product.employeeEarningValue,
+        stock: product.stock
       });
     }
 
-    // Fetch updated cart
+    // Fetch refreshed cart with latest totals
     const updatedCart = await Cart.findOne({
       where: { id: cart.id },
       include: {
         model: CartItem,
         as: "items",
-        include: {
-          model: Product,
-          as: "product",
-        },
+        include: { model: Product, as: "product" },
       },
     });
-
-    if (!updatedCart) {
-      return res.json({ items: [], totalItems: 0, grandTotal: 0 });
-    }
 
     let grandTotal = 0;
     let totalQty = 0;
@@ -156,7 +112,6 @@ export const addToCart = async (req, res) => {
 
   } catch (error) {
     console.error("Add To Cart Error:", error);
-
     return res.status(500).json({
       message: "Failed to add to cart",
       error: error.message,
