@@ -83,6 +83,7 @@ export const createOrder = async (req, res) => {
       shippingAddress,
       paymentMethod,
       paymentDetails, // Razorpay details
+      items: payloadItems,
     } = req.body;
 
     if (!shippingAddress) {
@@ -108,6 +109,7 @@ export const createOrder = async (req, res) => {
 
     const rawPayStatus = paymentDetails?.status || 'Pending';
     const orderPaymentStatus = rawPayStatus === 'Success' ? 'Successful' : rawPayStatus;
+
     // CREATE ORDER FIRST
     const order = await Order.create({
       userId: user.id,
@@ -122,28 +124,64 @@ export const createOrder = async (req, res) => {
       isPaid: paymentMethod === "Razorpay" && rawPayStatus === "Success",
     });
 
-    // MOVE CART ITEMS TO ORDER ITEMS
-    for (const item of cart.items) {
+    // Use items from payload if provided, otherwise fallback to cart items
+    const itemsToProcess = payloadItems && payloadItems.length > 0 ? payloadItems : cart.items;
+
+    let totalPrice = 0;
+    let totalQty = 0;
+    let totalAdminEarning = 0;
+    let totalSupervisorEarning = 0;
+    let totalEmployeeEarning = 0;
+    let totalGstAmount = 0;
+
+    // MOVE ITEMS TO ORDER ITEMS
+    for (const pItem of itemsToProcess) {
+      // Find the corresponding cart item to get the snapshots
+      const cartItem = cart.items.find(
+        (ci) => ci.productId === (pItem.productId || pItem.id)
+      );
+
+      if (!cartItem) continue;
+
+      const qty = parseInt(pItem.qty || 0);
+      if (qty <= 0) continue;
+
       await OrderItem.create({
         orderId: order.id,
-        productId: item.productId,
-        productname: item.productname,
-        category: item.category,
-        stock: item.stock,
-        unit: item.unit,
-        qty: item.qty,
-        productprice: item.productprice,
-        discountvalue: item.discountvalue,
-        sellingPrice: item.sellingPrice,
-        sellingPriceGst: item.sellingPriceGst,
-        totalSellingPriceGst: item.totalSellingPriceGst,
-        gstpercentage: item.gstpercentage,
-        hsncode: item.hsncode,
-        adminEarningValue: item.adminEarningValue,
-        supervisorEarningValue: item.supervisorEarningValue,
-        employeeEarningValue: item.employeeEarningValue,
+        productId: cartItem.productId,
+        productname: cartItem.productname,
+        category: cartItem.category,
+        stock: cartItem.stock,
+        unit: cartItem.unit,
+        qty: qty, // Explicitly from payload
+        productprice: cartItem.productprice,
+        discountvalue: cartItem.discountvalue,
+        sellingPrice: cartItem.sellingPrice,
+        sellingPriceGst: cartItem.sellingPriceGst,
+        totalSellingPriceGst: parseFloat(cartItem.sellingPriceGst || 0) * qty,
+        gstpercentage: cartItem.gstpercentage,
+        hsncode: cartItem.hsncode,
+        adminEarningValue: cartItem.adminEarningValue,
+        supervisorEarningValue: cartItem.supervisorEarningValue,
+        employeeEarningValue: cartItem.employeeEarningValue,
       });
+
+      // Explicitly calculate totals in controller
+      totalPrice += parseFloat(cartItem.sellingPrice || 0) * qty;
+      totalQty += qty;
+      totalAdminEarning += parseFloat(cartItem.adminEarningValue || 0) * qty;
+      totalSupervisorEarning += parseFloat(cartItem.supervisorEarningValue || 0) * qty;
+      totalEmployeeEarning += parseFloat(cartItem.employeeEarningValue || 0) * qty;
+      totalGstAmount += parseFloat(cartItem.sellingPriceGst || 0) * qty;
     }
+
+    // Set totals on order object
+    order.totalPrice = totalPrice;
+    order.totalQty = totalQty;
+    order.totalAdminEarning = totalAdminEarning;
+    order.totalSupervisorEarning = totalSupervisorEarning;
+    order.totalEmployeeEarning = totalEmployeeEarning;
+    order.totalGstAmount = totalGstAmount;
 
     const { admin, supervisor, employee: referralEmployee } = await getOrderReferralChain(user);
 
@@ -151,7 +189,7 @@ export const createOrder = async (req, res) => {
     if (supervisor) order.supervisorId = supervisor.id;
     if (referralEmployee) order.employeeId = referralEmployee.id;
 
-    // RE-CALCULATE TOTALS
+    // RE-CALCULATE TOTALS AND SAVE
     await order.save();
 
     // HANDLE PAYMENT MODEL ENTRY
@@ -259,9 +297,19 @@ export const createOrder = async (req, res) => {
     // CLEAR CART
     await cart.destroy();
 
+    // RE-FETCH FULL ORDER WITH ITEMS FOR RESPONSE
+    const fullOrder = await Order.findByPk(order.id, {
+      include: [
+        {
+          model: OrderItem,
+          as: "orderItems",
+        },
+      ],
+    });
+
     return res.status(201).json({
       message: "Order created successfully",
-      order,
+      order: fullOrder,
     });
 
   } catch (error) {
