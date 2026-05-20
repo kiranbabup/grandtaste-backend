@@ -499,7 +499,6 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
   }
 };
 
-
 // GET MY ORDERS
 export const getMyOrders = async (req, res) => {
   try {
@@ -760,8 +759,6 @@ export const getOrdersByEmployeePincode = async (req, res) => {
   }
 };
 
-
-
 // CUSTOMER REQUEST CANCEL
 export const requestCancelOrder = async (req, res) => {
   try {
@@ -872,13 +869,13 @@ export const requestReturnOrder = async (req, res) => {
   }
 };
 
-
 // SUPERVISOR STATUS UPDATE
 export const supervisorUpdateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
 
     const allowedStatuses = [
+      "Accepted",
       "Shipped",
       "Rejected",
       "Cancelled",
@@ -890,12 +887,41 @@ export const supervisorUpdateOrderStatus = async (req, res) => {
       });
     }
 
-    const order = await Order.findByPk(req.params.id);
+    const order = await Order.findByPk(req.params.id, {
+      include: {
+        model: OrderItem,
+        as: "orderItems",
+      },
+    });
 
     if (!order) {
       return res.status(404).json({
         message: "Order not found",
       });
+    }
+
+    // Deduct stock only when order is newly accepted
+    if (status === "Accepted" && order.status !== "Accepted") {
+      for (const item of order.orderItems) {
+        const product = await Product.findByPk(item.productId);
+
+        if (!product) {
+          return res.status(404).json({
+            message: `Product not found for item ${item.productId}`,
+          });
+        }
+
+        // Check stock availability
+        if (product.stock < item.qty) {
+          return res.status(400).json({
+            message: `${product.productname} has insufficient stock`,
+          });
+        }
+
+        // Reduce stock
+        product.stock = product.stock - item.qty;
+        await product.save();
+      }
     }
 
     order.status = status;
@@ -919,6 +945,7 @@ export const adminUpdateOrderStatus = async (req, res) => {
     const { status } = req.body;
 
     const allowedStatuses = [
+      "Accepted",
       "Shipped",
       "Rejected",
       "Cancelled",
@@ -933,12 +960,41 @@ export const adminUpdateOrderStatus = async (req, res) => {
       });
     }
 
-    const order = await Order.findByPk(req.params.id);
+    const order = await Order.findByPk(req.params.id, {
+      include: {
+        model: OrderItem,
+        as: "orderItems",
+      },
+    });
 
     if (!order) {
       return res.status(404).json({
         message: "Order not found",
       });
+    }
+
+    // Deduct stock only when order is newly accepted
+    if (status === "Accepted" && order.status !== "Accepted") {
+      for (const item of order.orderItems) {
+        const product = await Product.findByPk(item.productId);
+
+        if (!product) {
+          return res.status(404).json({
+            message: `Product not found for item ${item.productId}`,
+          });
+        }
+
+        // Check stock availability
+        if (product.stock < item.qty) {
+          return res.status(400).json({
+            message: `${product.productname} has insufficient stock`,
+          });
+        }
+
+        // Reduce stock
+        product.stock = product.stock - item.qty;
+        await product.save();
+      }
     }
 
     order.status = status;
