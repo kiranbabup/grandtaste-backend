@@ -604,7 +604,13 @@ export const getAllOrders = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
+    const where = {};
+    if (req.user && req.user.role === "supervisor") {
+      where.deliveryPincode = req.user.pincode;
+    }
+
     const { count, rows } = await Order.findAndCountAll({
+      where,
       include: [
         {
           model: User,
@@ -644,6 +650,70 @@ export const getAllOrders = async (req, res) => {
 
     return res.status(500).json({
       message: "Failed to fetch all orders",
+      error: error.message,
+    });
+  }
+};
+
+// SEARCH ORDERS BY PHONE
+export const getOrdersBySearchPhone = async (req, res) => {
+  try {
+    const { phone } = req.params;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const where = {
+      phone: {
+        [Op.like]: `%${phone}%`,
+      },
+    };
+
+    if (req.user && req.user.role === "supervisor") {
+      where.deliveryPincode = req.user.pincode;
+    }
+
+    const { count, rows } = await Order.findAndCountAll({
+      where,
+      include: [
+        {
+          model: User,
+          attributes: [
+            "id",
+            "name",
+            "phone",
+            "role",
+            "pincode",
+          ],
+        },
+        {
+          model: OrderItem,
+          as: "orderItems",
+        },
+        {
+          model: User,
+          as: "assignedEmployee",
+          attributes: ["id", "name", "phone", "referalcode"],
+        },
+      ],
+      limit,
+      offset,
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.status(200).json({
+      totalItems: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      orders: rows,
+    });
+
+  } catch (error) {
+    console.error("Search Orders By Phone Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to search orders",
       error: error.message,
     });
   }
