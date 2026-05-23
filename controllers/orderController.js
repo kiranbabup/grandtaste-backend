@@ -719,64 +719,6 @@ export const getOrdersBySearchPhone = async (req, res) => {
   }
 };
 
-// SEARCH ORDERS BY PHONE
-export const getOrdersBySearchPhone = async (req, res) => {
-  try {
-    const { phone } = req.params;
-
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const offset = (page - 1) * limit;
-
-    const { count, rows } = await Order.findAndCountAll({
-      where: {
-        phone: {
-          [Op.like]: `%${phone}%`,
-        },
-      },
-      include: [
-        {
-          model: User,
-          attributes: [
-            "id",
-            "name",
-            "phone",
-            "role",
-            "pincode",
-          ],
-        },
-        {
-          model: OrderItem,
-          as: "orderItems",
-        },
-        {
-          model: User,
-          as: "assignedEmployee",
-          attributes: ["id", "name", "phone", "referalcode"],
-        },
-      ],
-      limit,
-      offset,
-      order: [["createdAt", "DESC"]],
-    });
-
-    return res.status(200).json({
-      totalItems: count,
-      totalPages: Math.ceil(count / limit),
-      currentPage: page,
-      orders: rows,
-    });
-
-  } catch (error) {
-    console.error("Search Orders By Phone Error:", error);
-
-    return res.status(500).json({
-      message: "Failed to search orders",
-      error: error.message,
-    });
-  }
-};
-
 // GET EMPLOYEE ORDERS BY PINCODE
 export const getOrdersByEmployeePincode = async (req, res) => {
   try {
