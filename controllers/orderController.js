@@ -353,6 +353,13 @@ export const employeeUpdateOrderStatus = async (req, res) => {
       });
     }
 
+    // Ownership check: employee can only update orders assigned to them
+    if (order.assignedEmployeeId !== req.user.id) {
+      return res.status(403).json({
+        message: "Access denied. This order is not assigned to you.",
+      });
+    }
+
     // Deduct stock only when order is newly accepted
     if (status === "Accepted" && order.status !== "Accepted") {
       for (const item of order.orderItems) {
@@ -415,6 +422,13 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
     });
 
     if (!order) return res.status(404).json({ message: "Order not found" });
+
+    // Ownership check: employee can only update delivery for orders assigned to them
+    if (order.assignedEmployeeId !== req.user.id) {
+      return res.status(403).json({
+        message: "Access denied. This order is not assigned to you.",
+      });
+    }
 
     order.status = status;
 
@@ -576,10 +590,21 @@ export const getOrderById = async (req, res) => {
       });
     }
 
-    // EMPLOYEE can only view orders in their assigned pincode
-    if (userRole === "employee" && order.deliveryPincode !== req.user.pincode) {
+    // EMPLOYEE can only view orders assigned to them
+    if (userRole === "employee" && order.assignedEmployeeId !== req.user.id) {
       return res.status(403).json({
-        message: "Access denied. This order is not in your assigned pincode.",
+        message: "Access denied. This order is not assigned to you.",
+      });
+    }
+
+    // SUPERVISOR can only view orders in their territory or downline
+    if (
+      userRole === "supervisor" &&
+      order.supervisorId !== req.user.id &&
+      order.deliveryPincode !== req.user.pincode
+    ) {
+      return res.status(403).json({
+        message: "Access denied. This order is not in your territory.",
       });
     }
 
@@ -604,13 +629,16 @@ export const getAllOrders = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const where = {};
-    if (req.user && req.user.role === "supervisor") {
-      where.deliveryPincode = req.user.pincode;
+    const whereClause = {};
+    if (req.user.role === "supervisor") {
+      whereClause[Op.or] = [
+        { supervisorId: req.user.id },
+        { deliveryPincode: req.user.pincode }
+      ];
     }
 
     const { count, rows } = await Order.findAndCountAll({
-      where,
+      where: whereClause,
       include: [
         {
           model: User,
@@ -664,18 +692,22 @@ export const getOrdersBySearchPhone = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const where = {
-      phone: {
-        [Op.like]: `%${phone}%`,
-      },
-    };
-
-    if (req.user && req.user.role === "supervisor") {
-      where.deliveryPincode = req.user.pincode;
+    // Build territorial filter for supervisors
+    const territoryClause = {};
+    if (req.user.role === "supervisor") {
+      territoryClause[Op.or] = [
+        { supervisorId: req.user.id },
+        { deliveryPincode: req.user.pincode }
+      ];
     }
 
     const { count, rows } = await Order.findAndCountAll({
-      where,
+      where: {
+        phone: {
+          [Op.like]: `%${phone}%`,
+        },
+        ...territoryClause,
+      },
       include: [
         {
           model: User,
@@ -909,6 +941,16 @@ export const supervisorUpdateOrderStatus = async (req, res) => {
     if (!order) {
       return res.status(404).json({
         message: "Order not found",
+      });
+    }
+
+    // Ownership check: supervisor can only update orders in their territory
+    if (
+      order.supervisorId !== req.user.id &&
+      order.deliveryPincode !== req.user.pincode
+    ) {
+      return res.status(403).json({
+        message: "Access denied. This order is not in your territory.",
       });
     }
 
