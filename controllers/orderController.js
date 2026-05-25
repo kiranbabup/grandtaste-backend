@@ -1,3 +1,4 @@
+// orderController.js
 import { Op } from "sequelize";
 import { Order, OrderItem } from "../models/Order.js";
 import { Cart, CartItem } from "../models/Cart.js";
@@ -435,6 +436,7 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
     if (status === "Delivered") {
       if (order.paymentMethod === "Cash on Delivery" && !order.isPaid) {
         order.isPaid = true;
+        order.paymentStatus = "Successful";
       }
       order.isDelivered = true;
 
