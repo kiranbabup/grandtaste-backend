@@ -7,6 +7,7 @@ import {
   employeeOnly,
   customerOnly,
   superAdminOnly,
+  adminOnly,
 } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -31,7 +32,7 @@ router.put("/employeeUpdateDeliveryStatus/:id", protect, employeeOnly, employeeU
 router.put("/supervisorUpdateStatus/:id", protect, websiteStaff, supervisorUpdateOrderStatus);
 
 // SUPERADMIN ROUTES
-router.put("/adminUpdateStatus/:id", protect, superAdminOnly, adminUpdateOrderStatus);
+router.put("/adminUpdateStatus/:id", protect, adminOnly, adminUpdateOrderStatus);
 
 // WEBSITE STAFF VIEW ROUTES
 router.get("/getAllOrders", protect, websiteStaff, getAllOrders);
