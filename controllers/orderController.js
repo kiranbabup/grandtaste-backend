@@ -437,6 +437,18 @@ export const employeeUpdateDeliveryStatus = async (req, res) => {
       if (order.paymentMethod === "Cash on Delivery" && !order.isPaid) {
         order.isPaid = true;
         order.paymentStatus = "Successful";
+        // Update payment record also
+        await Payments.update(
+          {
+            status: "Success",
+          },
+          {
+            where: {
+              orderId: order.id,
+              payment_method: "cod",
+            },
+          }
+        );
       }
       order.isDelivered = true;
 

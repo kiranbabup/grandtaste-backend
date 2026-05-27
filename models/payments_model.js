@@ -1,4 +1,4 @@
-// UPDATED payments_model.js
+// payments_model.js
 
 import { DataTypes } from "sequelize";
 import { sequelize } from "../config/db.js";
