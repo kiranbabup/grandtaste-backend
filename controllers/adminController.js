@@ -193,9 +193,15 @@ export const updateWithdrawStatus = async (req, res) => {
       await withdraw.save();
 
       // Deduct from withdrawable balance permanently
+      user.earnings =
+        parseFloat(user.earnings || 0) -
+        parseFloat(withdraw.withdrawAmount);
+
+      // Optional: keep history
       user.withdrawn =
         parseFloat(user.withdrawn || 0) +
         parseFloat(withdraw.withdrawAmount);
+
 
       await user.save();
 
@@ -593,9 +599,9 @@ export const getSuperAdminIncomeStats = async (req, res) => {
 
     const lastMonthIncome = await Order.sum('totalPrice', {
       where: {
-        createdAt: { 
-          [Op.gte]: lastMonthStart + ' 00:00:00', 
-          [Op.lte]: lastMonthEnd + ' 23:59:59' 
+        createdAt: {
+          [Op.gte]: lastMonthStart + ' 00:00:00',
+          [Op.lte]: lastMonthEnd + ' 23:59:59'
         },
         status: { [Op.in]: ["Delivered", "Paid"] }
       }

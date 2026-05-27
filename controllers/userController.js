@@ -1189,8 +1189,7 @@ export const requestWithdraw = async (req, res) => {
 
     // Available balance check
     const availableBalance =
-      parseFloat(user.earnings || 0) -
-      parseFloat(user.withdrawn || 0);
+      parseFloat(user.earnings || 0);
 
     if (parseFloat(withdrawAmount) > availableBalance) {
       return res.status(400).json({
