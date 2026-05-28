@@ -112,6 +112,74 @@ export const getAllWithdrawRequests = async (req, res) => {
   }
 };
 
+// SUPERADMIN EXPORT WITHDRAW REQUESTS
+export const exportWithdrawRequests = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const where = {};
+
+    if (startDate || endDate) {
+      const dateRange = {};
+
+      if (startDate) {
+        const start = new Date(startDate);
+        if (Number.isNaN(start.getTime())) {
+          return res.status(400).json({ message: "Invalid startDate" });
+        }
+        dateRange[Op.gte] = start.toISOString();
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        if (Number.isNaN(end.getTime())) {
+          return res.status(400).json({ message: "Invalid endDate" });
+        }
+        end.setHours(23, 59, 59, 999);
+        dateRange[Op.lte] = end.toISOString();
+      }
+
+      if (dateRange[Op.gte] && dateRange[Op.lte] && dateRange[Op.gte] > dateRange[Op.lte]) {
+        return res.status(400).json({ message: "startDate cannot be later than endDate" });
+      }
+
+      where.createdAt = dateRange;
+    }
+
+    const withdrawRequests = await Withdraw.findAll({
+      where,
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: [
+            "id",
+            "name",
+            "phone",
+            "role",
+            "earnings",
+            "withdrawn",
+            "status",
+            "referalcode",
+          ],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.json({
+      totalItems: withdrawRequests.length,
+      withdrawRequests,
+    });
+  } catch (error) {
+    console.error("Export Withdraw Requests Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to export withdraw requests",
+      error: error.message,
+    });
+  }
+};
+
 // SUPERADMIN UPDATE WITHDRAW STATUS
 export const updateWithdrawStatus = async (req, res) => {
   try {

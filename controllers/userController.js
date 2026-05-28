@@ -1294,6 +1294,98 @@ export const getMyEarningsHistory = async (req, res) => {
   }
 };
 
+export const updateUserReferralCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { referedby } = req.body;
+
+    if (!referedby) {
+      return res.status(400).json({
+        message: "Referral code is required",
+      });
+    }
+
+    const targetUser = await User.findByPk(id);
+
+    if (!targetUser) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    if (targetUser.role === "superadmin") {
+      return res.status(400).json({
+        message: "Superadmin referral cannot be changed",
+      });
+    }
+
+    const newReferrer = await User.findOne({
+      where: { referalcode: referedby },
+    });
+
+    if (!newReferrer) {
+      return res.status(404).json({
+        message: "Referral code not found",
+      });
+    }
+
+    if (newReferrer.status !== "active") {
+      return res.status(403).json({
+        message: "Referral user is not active",
+      });
+    }
+
+    const validReferrerRoles = {
+      admin: ["superadmin"],
+      supervisor: ["admin"],
+      employee: ["supervisor"],
+      customer: ["employee"],
+    };
+
+    if (
+      !validReferrerRoles[targetUser.role] ||
+      !validReferrerRoles[targetUser.role].includes(newReferrer.role)
+    ) {
+      return res.status(400).json({
+        message: `Invalid referral code for ${targetUser.role}`,
+      });
+    }
+
+    const oldReferrer = targetUser.referedby
+      ? await User.findOne({ where: { referalcode: targetUser.referedby } })
+      : null;
+
+    if (oldReferrer && oldReferrer.id !== newReferrer.id) {
+      oldReferrer.directReferrals = Math.max(
+        0,
+        oldReferrer.directReferrals - 1
+      );
+      await oldReferrer.save();
+    }
+
+    targetUser.referedby = referedby;
+    targetUser.parentId = newReferrer.id;
+    await targetUser.save();
+
+    if (!oldReferrer || oldReferrer.id !== newReferrer.id) {
+      newReferrer.directReferrals += 1;
+      await newReferrer.save();
+    }
+
+    return res.json({
+      message: "Referral code updated successfully",
+      userId: targetUser.id,
+      referedby: targetUser.referedby,
+    });
+  } catch (error) {
+    console.error("Update Referral Code Error:", error);
+    return res.status(500).json({
+      message: "Failed to update referral code",
+      error: error.message,
+    });
+  }
+};
+
 // GET USER BY ID
 export const getUserById = async (req, res) => {
   try {
@@ -1327,7 +1419,8 @@ export const getUserById = async (req, res) => {
       phone: user.phone || "",
       role: user.role || "",
       pincode: user.pincode || "",
-      referedby: referredByName || "",
+      referedby: user.referedby || "",
+      referredByName: referredByName || "",
       referalcode: user.referalcode || "",
       earnings: user.earnings || 0.00,
       directReferrals: user.directReferrals || 0,

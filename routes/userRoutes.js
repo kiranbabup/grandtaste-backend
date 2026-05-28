@@ -17,9 +17,10 @@ import {
   searchUsersByHierarchy,
   requestWithdraw,
   getMyEarningsHistory,
-  getUserById
+  getUserById,
+  updateUserReferralCode,
 } from "../controllers/userController.js";
-import { updateUserStatus, getAllWithdrawRequests, updateWithdrawStatus, getUserEarningsHistory, getPayments } from "../controllers/adminController.js";
+import { updateUserStatus, getAllWithdrawRequests, exportWithdrawRequests, updateWithdrawStatus, getUserEarningsHistory, getPayments } from "../controllers/adminController.js";
 import { sendNotification, getMyNotifications, markNotificationRead } from "../controllers/notificationController.js";
 import {
   protect,
@@ -57,6 +58,7 @@ router.get("/users/downline/:referalcode", protect, getUsersByReferralHierarchy)
 router.get("/users/search/:searchString", protect, websiteStaff, searchUsersByHierarchy);
 router.get("/users/:id", protect, getUserById);
 router.put("/users/status/:id", protect, updateUserStatus);
+router.put("/users/referral/:id", protect, superAdminOnly, updateUserReferralCode);
 
 // EARNINGS
 router.get("/earnings/history", protect, getMyEarningsHistory);
@@ -72,6 +74,7 @@ router.delete("/bank-details/:id", protect, appStaffOnly, deleteBankDetail);
 router.post("/withdraw/request", protect, appStaffOnly, requestWithdraw);
 // WITHDRAW website only routes
 router.get("/withdraw/all", protect, superAdminOnly, getAllWithdrawRequests);
+router.get("/withdraw/export", protect, superAdminOnly, exportWithdrawRequests);
 router.put("/withdraw/status/:id", protect, superAdminOnly, updateWithdrawStatus);
 
 // NOTIFICATIONS
