@@ -1294,6 +1294,25 @@ export const getMyEarningsHistory = async (req, res) => {
   }
 };
 
+export const getMyWithdrawHistory = async (req, res) => {
+  try {
+    const withdrawals = await Withdraw.findAll({
+      where: { userId: req.user.id },
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.json({
+      withdrawals,
+    });
+  } catch (error) {
+    console.error("Get Withdraw History Error:", error);
+    return res.status(500).json({
+      message: "Failed to fetch withdraw history",
+      error: error.message,
+    });
+  }
+};
+
 export const updateUserReferralCode = async (req, res) => {
   try {
     const { id } = req.params;

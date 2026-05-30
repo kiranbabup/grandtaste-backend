@@ -17,6 +17,7 @@ import {
   searchUsersByHierarchy,
   requestWithdraw,
   getMyEarningsHistory,
+  getMyWithdrawHistory,
   getUserById,
   updateUserReferralCode,
 } from "../controllers/userController.js";
@@ -72,6 +73,7 @@ router.delete("/bank-details/:id", protect, appStaffOnly, deleteBankDetail);
 
 // WITHDRAW
 router.post("/withdraw/request", protect, appStaffOnly, requestWithdraw);
+router.get("/withdraw/history", protect, appStaffOnly, getMyWithdrawHistory);
 // WITHDRAW website only routes
 router.get("/withdraw/all", protect, superAdminOnly, getAllWithdrawRequests);
 router.get("/withdraw/export", protect, superAdminOnly, exportWithdrawRequests);
