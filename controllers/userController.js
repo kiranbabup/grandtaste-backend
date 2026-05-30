@@ -1296,13 +1296,22 @@ export const getMyEarningsHistory = async (req, res) => {
 
 export const getMyWithdrawHistory = async (req, res) => {
   try {
-    const withdrawals = await Withdraw.findAll({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Withdraw.findAndCountAll({
       where: { userId: req.user.id },
       order: [["createdAt", "DESC"]],
+      limit,
+      offset,
     });
 
     return res.json({
-      withdrawals,
+      totalItems: count,
+      withdrawals: rows,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
     });
   } catch (error) {
     console.error("Get Withdraw History Error:", error);
