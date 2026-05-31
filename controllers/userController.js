@@ -457,6 +457,10 @@ export const getUserProfile = async (req, res) => {
         ["admin", "supervisor", "employee"].includes(user.role)
           ? user.earnings
           : 0,
+      withdrawn:
+        ["admin", "supervisor", "employee"].includes(user.role)
+          ? user.withdrawn
+          : 0,
       directReferrals:
         ["admin", "supervisor", "employee"].includes(user.role)
           ? user.directReferrals
@@ -512,6 +516,10 @@ export const updateUserProfile = async (req, res) => {
         earnings:
           ["admin", "supervisor", "employee"].includes(user.role)
             ? user.earnings
+            : 0,
+        withdrawn:
+          ["admin", "supervisor", "employee"].includes(user.role)
+            ? user.withdrawn
             : 0,
         directReferrals:
           ["admin", "supervisor", "employee"].includes(user.role)
@@ -1451,6 +1459,7 @@ export const getUserById = async (req, res) => {
       referredByName: referredByName || "",
       referalcode: user.referalcode || "",
       earnings: user.earnings || 0.00,
+      withdrawn: user.withdrawn || 0.00,
       directReferrals: user.directReferrals || 0,
       addresses,
       status: user.status,
