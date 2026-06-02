@@ -21,7 +21,7 @@ import {
   getUserById,
   updateUserReferralCode,
 } from "../controllers/userController.js";
-import { updateUserStatus, getAllWithdrawRequests, exportWithdrawRequests, updateWithdrawStatus, getUserEarningsHistory, getPayments } from "../controllers/adminController.js";
+import { updateUserStatus, getAllWithdrawRequests, exportWithdrawRequests, updateWithdrawStatus, getUserEarningsHistory, getPayments, exportPayments } from "../controllers/adminController.js";
 import { sendNotification, getMyNotifications, markNotificationRead, deleteNotification } from "../controllers/notificationController.js";
 import {
   protect,
@@ -86,5 +86,6 @@ router.put("/notifications/read/:id", protect, markNotificationRead);
 router.put("/notifications/delete/:id", protect, deleteNotification);
 
 router.get("/getpayments", protect, superAdminOnly, getPayments);
+router.get("/getpayments/export", protect, superAdminOnly, exportPayments);
 
 export default router;

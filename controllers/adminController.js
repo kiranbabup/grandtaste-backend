@@ -484,7 +484,27 @@ export const getPayments = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
+    const where = {};
+    if (req.query.startDate || req.query.endDate) {
+      const startDate = req.query.startDate
+        ? new Date(`${req.query.startDate}T00:00:00`) : new Date("2026-05-15T00:00:00");
+      const endDate = req.query.endDate
+        ? new Date(`${req.query.endDate}T23:59:59.999`) : new Date();
+
+      if (startDate < new Date("2026-05-15T00:00:00")) {
+        startDate.setTime(new Date("2026-05-15T00:00:00").getTime());
+      }
+      if (endDate > new Date()) {
+        endDate.setTime(new Date().getTime());
+      }
+
+      where.createdAt = {
+        [Op.between]: [startDate, endDate],
+      };
+    }
+
     const { count, rows } = await Payments.findAndCountAll({
+      where,
       include: [
         {
           model: User,
@@ -524,6 +544,87 @@ export const getPayments = async (req, res) => {
 
     return res.status(500).json({
       message: "Failed to fetch payments",
+      error: error.message,
+    });
+  }
+};
+
+export const exportPayments = async (req, res) => {
+  try {
+    const { startDate: startDateRaw, endDate: endDateRaw } = req.query;
+    const minStartDate = new Date("2026-05-15T00:00:00");
+    const today = new Date();
+
+    if (!startDateRaw || !endDateRaw) {
+      return res.status(400).json({
+        message: "startDate and endDate are required for export",
+      });
+    }
+
+    const startDate = new Date(`${startDateRaw}T00:00:00`);
+    const endDate = new Date(`${endDateRaw}T23:59:59.999`);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return res.status(400).json({
+        message: "Invalid date format",
+      });
+    }
+
+    if (startDate < minStartDate) {
+      return res.status(400).json({
+        message: "startDate cannot be earlier than 2026-05-15",
+      });
+    }
+
+    if (endDate > today) {
+      return res.status(400).json({
+        message: "endDate cannot be later than today",
+      });
+    }
+
+    if (endDate < startDate) {
+      return res.status(400).json({
+        message: "endDate cannot be earlier than startDate",
+      });
+    }
+
+    const payments = await Payments.findAll({
+      where: {
+        status: "Success",
+        createdAt: {
+          [Op.between]: [startDate, endDate],
+        },
+      },
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: [
+            "id",
+            "name",
+            "phone",
+            "role",
+          ],
+        },
+        {
+          model: Order,
+          as: "order",
+          attributes: [
+            "id",
+            "orderId",
+          ],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.status(200).json({
+      payments,
+    });
+  } catch (error) {
+    console.error("Export Payments Error:", error);
+    return res.status(500).json({
+      message: "Failed to export payments",
       error: error.message,
     });
   }
