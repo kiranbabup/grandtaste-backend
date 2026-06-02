@@ -22,7 +22,7 @@ import {
   updateUserReferralCode,
 } from "../controllers/userController.js";
 import { updateUserStatus, getAllWithdrawRequests, exportWithdrawRequests, updateWithdrawStatus, getUserEarningsHistory, getPayments } from "../controllers/adminController.js";
-import { sendNotification, getMyNotifications, markNotificationRead } from "../controllers/notificationController.js";
+import { sendNotification, getMyNotifications, markNotificationRead, deleteNotification } from "../controllers/notificationController.js";
 import {
   protect,
   websiteStaff,
@@ -83,6 +83,7 @@ router.put("/withdraw/status/:id", protect, superAdminOnly, updateWithdrawStatus
 router.post("/notifications/send", protect, sendNotification);
 router.get("/notifications", protect, getMyNotifications);
 router.put("/notifications/read/:id", protect, markNotificationRead);
+router.put("/notifications/delete/:id", protect, deleteNotification);
 
 router.get("/getpayments", protect, superAdminOnly, getPayments);
 
