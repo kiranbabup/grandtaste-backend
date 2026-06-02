@@ -61,12 +61,39 @@ const populateOrderReferralIds = async (order) => {
     return { orderUser: null, admin: null, supervisor: null, referralEmployee: null };
   }
 
-
   order.adminId = admin?.id || null;
   order.supervisorId = supervisor?.id || null;
   order.employeeId = referralEmployee?.id || null;
 
   return { orderUser, admin, supervisor, referralEmployee };
+};
+
+const getOrderReferrerInfo = async (order) => {
+  const orderUser = await User.findByPk(order.userId);
+  if (!orderUser || !orderUser.parentId) {
+    return null;
+  }
+
+  const referrer = await User.findByPk(orderUser.parentId);
+  if (!referrer) {
+    return null;
+  }
+
+  return {
+    id: referrer.id,
+    name: referrer.name,
+    phone: referrer.phone,
+    role: referrer.role,
+  };
+};
+
+const attachReferralInfoToOrder = async (order) => {
+  const referrer = await getOrderReferrerInfo(order);
+  const orderData = typeof order.toJSON === "function" ? order.toJSON() : order;
+  return {
+    ...orderData,
+    referredPerson: referrer,
+  };
 };
 
 // CREATE ORDER
@@ -578,7 +605,7 @@ export const getOrderById = async (req, res) => {
         },
         {
           model: User,
-          attributes: ["id", "name", "phone", "role", "pincode", "referalcode"],
+          attributes: ["id", "name", "phone", "role", "pincode", "referedby"],
         },
         {
           model: User,
@@ -625,7 +652,8 @@ export const getOrderById = async (req, res) => {
     // Website Staff (Admin, Superadmin, Supervisor) can view all orders
     // This is handled by falling through the above checks.
 
-    return res.status(200).json(order);
+    const orderWithReferral = await attachReferralInfoToOrder(order);
+    return res.status(200).json(orderWithReferral);
 
   } catch (error) {
     console.error("Get Order By ID Error:", error);
@@ -662,7 +690,7 @@ export const getAllOrders = async (req, res) => {
             "phone",
             "role",
             "pincode",
-            "referalcode",
+            "referedby",
           ],
         },
         {
@@ -680,11 +708,15 @@ export const getAllOrders = async (req, res) => {
       offset,
     });
 
+    const ordersWithReferral = await Promise.all(
+      rows.map((order) => attachReferralInfoToOrder(order))
+    );
+
     return res.status(200).json({
       totalItems: count,
       totalPages: Math.ceil(count / limit),
       currentPage: page,
-      orders: rows,
+      orders: ordersWithReferral,
     });
 
   } catch (error) {
@@ -731,6 +763,7 @@ export const getOrdersBySearchPhone = async (req, res) => {
             "phone",
             "role",
             "pincode",
+            "referedby",
           ],
         },
         {
@@ -748,11 +781,15 @@ export const getOrdersBySearchPhone = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
+    const ordersWithReferral = await Promise.all(
+      rows.map((order) => attachReferralInfoToOrder(order))
+    );
+
     return res.status(200).json({
       totalItems: count,
       totalPages: Math.ceil(count / limit),
       currentPage: page,
-      orders: rows,
+      orders: ordersWithReferral,
     });
 
   } catch (error) {
@@ -796,15 +833,20 @@ export const getOrdersByEmployeePincode = async (req, res) => {
             "phone",
             "role",
             "pincode",
+            "referedby",
           ],
         },
       ],
       order: [["createdAt", "DESC"]],
     });
 
+    const ordersWithReferral = await Promise.all(
+      orders.map((order) => attachReferralInfoToOrder(order))
+    );
+
     return res.status(200).json({
-      totalOrders: orders.length,
-      orders,
+      totalOrders: ordersWithReferral.length,
+      orders: ordersWithReferral,
     });
 
   } catch (error) {
