@@ -1036,7 +1036,7 @@ export const searchUsersByHierarchy = async (req, res) => {
       });
     }
 
-    let whereClause = {
+    const searchClause = {
       [Op.or]: [
         { name: { [Op.like]: `%${searchString}%` } },
         { email: { [Op.like]: `%${searchString}%` } },
@@ -1045,8 +1045,9 @@ export const searchUsersByHierarchy = async (req, res) => {
       ],
     };
 
+    const accessClauses = [];
     if (requestedRole) {
-      whereClause.role = requestedRole;
+      accessClauses.push({ role: requestedRole });
     }
 
     // ADMIN SEARCH RESTRICTION
@@ -1056,27 +1057,26 @@ export const searchUsersByHierarchy = async (req, res) => {
         attributes: ["id", "referalcode"],
       });
 
-      const supervisorCodes = supervisors.map((s) => s.referalcode);
+      const supervisorCodes = supervisors.map((s) => s.referalcode).filter(Boolean);
 
       const employees = await User.findAll({
         where: {
           referedby: {
-            [Op.in]: supervisorCodes,
+            [Op.in]: supervisorCodes.length ? supervisorCodes : [null],
           },
         },
         attributes: ["id", "referalcode"],
       });
 
-      const employeeCodes = employees.map((e) => e.referalcode);
+      const employeeCodes = employees.map((e) => e.referalcode).filter(Boolean);
 
-      whereClause = {
-        ...whereClause,
+      accessClauses.push({
         [Op.or]: [
           { referedby: loggedInUser.referalcode },
-          { referedby: { [Op.in]: supervisorCodes } },
-          { referedby: { [Op.in]: employeeCodes } },
+          ...(supervisorCodes.length ? [{ referedby: { [Op.in]: supervisorCodes } }] : []),
+          ...(employeeCodes.length ? [{ referedby: { [Op.in]: employeeCodes } }] : []),
         ],
-      };
+      });
     }
 
     // SUPERVISOR SEARCH RESTRICTION
@@ -1086,16 +1086,19 @@ export const searchUsersByHierarchy = async (req, res) => {
         attributes: ["id", "referalcode"],
       });
 
-      const employeeCodes = employees.map((e) => e.referalcode);
+      const employeeCodes = employees.map((e) => e.referalcode).filter(Boolean);
 
-      whereClause = {
-        ...whereClause,
+      accessClauses.push({
         [Op.or]: [
           { referedby: loggedInUser.referalcode },
-          { referedby: { [Op.in]: employeeCodes } },
+          ...(employeeCodes.length ? [{ referedby: { [Op.in]: employeeCodes } }] : []),
         ],
-      };
+      });
     }
+
+    const whereClause = {
+      [Op.and]: [searchClause, ...accessClauses],
+    };
 
     const { count, rows } = await User.findAndCountAll({
       where: whereClause,
