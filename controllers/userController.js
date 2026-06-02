@@ -1016,6 +1016,7 @@ export const getUsersByReferralHierarchy = async (req, res) => {
 export const searchUsersByHierarchy = async (req, res) => {
   try {
     const { searchString } = req.params;
+    const requestedRole = req.query.role;
     const loggedInUser = req.user;
 
     const page = parseInt(req.query.page) || 1;
@@ -1028,6 +1029,13 @@ export const searchUsersByHierarchy = async (req, res) => {
       });
     }
 
+    const validRoles = ["superadmin", "admin", "supervisor", "employee", "customer"];
+    if (requestedRole && !validRoles.includes(requestedRole)) {
+      return res.status(400).json({
+        message: "Invalid role filter",
+      });
+    }
+
     let whereClause = {
       [Op.or]: [
         { name: { [Op.like]: `%${searchString}%` } },
@@ -1036,6 +1044,10 @@ export const searchUsersByHierarchy = async (req, res) => {
         { referalcode: { [Op.like]: `%${searchString}%` } },
       ],
     };
+
+    if (requestedRole) {
+      whereClause.role = requestedRole;
+    }
 
     // ADMIN SEARCH RESTRICTION
     if (loggedInUser.role === "admin") {
