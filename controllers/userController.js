@@ -8,6 +8,7 @@ import Address from "../models/AddressModel.js";
 import Withdraw from "../models/WithdrawModel.js";
 import BankDetail from "../models/BankDetailsModel.js";
 import EarningsLedger from "../models/EarningsLedgerModel.js";
+import { Order, OrderItem } from "../models/Order.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -1307,7 +1308,42 @@ export const getMyEarningsHistory = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
-    return res.json(earnings);
+    const enrichedEarnings = await Promise.all(
+      earnings.map(async (entry) => {
+        const data = entry.toJSON();
+
+        let fromUser = null;
+        if (data.fromUserId) {
+          const user = await User.findByPk(data.fromUserId, {
+            attributes: ["id", "name", "phone", "role"],
+          });
+          fromUser = user ? user.toJSON() : null;
+        }
+
+        let order = null;
+        if (data.orderId) {
+          const foundOrder = await Order.findByPk(data.orderId, {
+            attributes: ["id", "orderId", "status", "totalPrice", "createdAt"],
+            include: [
+              {
+                model: OrderItem,
+                as: "orderItems",
+                attributes: ["productname", "qty", "sellingPrice"],
+              },
+            ],
+          });
+          order = foundOrder ? foundOrder.toJSON() : null;
+        }
+
+        return {
+          ...data,
+          fromUser,
+          order,
+        };
+      })
+    );
+
+    return res.json(enrichedEarnings);
 
   } catch (error) {
     return res.status(500).json({
