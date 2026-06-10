@@ -3,7 +3,7 @@ import User from "../models/User.js";
 import generateToken from "../utils/generateToken.js";
 import generateReferralCode from "../utils/generateReferralCode.js";
 import { OAuth2Client } from 'google-auth-library';
-import { Op } from "sequelize";
+import { Op, fn, col, where } from "sequelize";
 import Address from "../models/AddressModel.js";
 import Withdraw from "../models/WithdrawModel.js";
 import BankDetail from "../models/BankDetailsModel.js";
@@ -49,11 +49,14 @@ export const registerUser = async (req, res) => {
       });
     }
 
+    const referralCode = String(referedby).trim();
+    const normalizedReferralCode = referralCode.toLowerCase();
+
     let role = "";
     let parentUser = null;
 
     // SUPERADMIN → ADMIN
-    if (referedby === "superadmin") {
+    if (normalizedReferralCode === "superadmin") {
       role = "admin";
 
       parentUser = await User.findOne({
@@ -68,7 +71,7 @@ export const registerUser = async (req, res) => {
 
     } else {
       parentUser = await User.findOne({
-        where: { referalcode: referedby },
+        where: where(fn("LOWER", col("referalcode")), normalizedReferralCode),
       });
 
       if (!parentUser) {
@@ -140,7 +143,7 @@ export const registerUser = async (req, res) => {
       name,
       phone,
       password,
-      referedby,
+      referedby: referralCode,
       referalcode,
       role,
       pincode: pincode || null,

@@ -1,6 +1,6 @@
 const generateReferralCode = () => {
   const characters =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    "abcdefghijklmnopqrstuvwxyz0123456789";
 
   let referralCode = "";
 
